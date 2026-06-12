@@ -1,17 +1,13 @@
+// @ts-nocheck
+// Service Worker for PWA offline support
 import { defaultCache } from "@serwist/next/worker";
-import type { PrecacheEntry, SerwistGlobalConfig } from "@serwist/precaching";
+import type { PrecacheEntry } from "@serwist/precaching";
 import { Serwist } from "@serwist/precaching";
 
-declare global {
-  interface WorkerGlobalScope extends SerwistGlobalConfig {
-    __SW_MANIFEST: (PrecacheEntry | string)[] | undefined;
-  }
-}
-
-declare const self: ServiceWorkerGlobalScope;
+declare const self: any;
 
 const serwist = new Serwist({
-  precacheEntries: self.__SW_MANIFEST,
+  precacheEntries: self.__SW_MANIFEST as (PrecacheEntry | string)[] | undefined,
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,

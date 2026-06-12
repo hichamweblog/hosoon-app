@@ -1,11 +1,11 @@
-import quranData from './quran-thumuns.json';
 import {
-  TOTAL_THUMUNS,
-  TOTAL_JUZS,
-  TOTAL_HIZBS,
   PREP_WEEKLY_THUMUNS,
   REVIEW_NEAR_THUMUNS,
-} from './constants';
+  TOTAL_HIZBS,
+  TOTAL_JUZS,
+  TOTAL_THUMUNS,
+} from "./constants";
+import quranData from "./quran-thumuns.json";
 
 export interface Thumun {
   id: number;
@@ -56,7 +56,8 @@ export const getFortressTasks = (day: number, farReviewPointer: number = 1) => {
   const poolSize = day - 9;
   if (poolSize > 0) {
     let rate = 16; // 2 hizbs (first half)
-    if (day > 240 && day <= 360) rate = 24; // 3 hizbs (third quarter)
+    if (day > 240 && day <= 360)
+      rate = 24; // 3 hizbs (third quarter)
     else if (day > 360) rate = 32; // 4 hizbs (fourth quarter)
 
     const start = Math.min(farReviewPointer, poolSize);
@@ -70,19 +71,28 @@ export const getFortressTasks = (day: number, farReviewPointer: number = 1) => {
   }
 
   // Count total tasks for this day
-  const taskKeys = ['khatma', 'prep_weekly', 'prep_night', 'prep_pre', 'new_hifz'];
-  if (reviewNear.length > 0) taskKeys.push('review_near');
-  if (reviewFar) taskKeys.push('review_far');
+  const taskKeys: string[] = [
+    "khatma",
+    "prep_weekly",
+    "prep_night",
+    "prep_pre",
+    "new_hifz",
+  ];
+  if (reviewNear.length > 0) taskKeys.push("review_near");
+  if (reviewFar) taskKeys.push("review_far");
 
   return {
-    khatma: { recitation: `الجزء ${recitationJuz}`, listening: `الحزب ${listeningHizb}` },
+    khatma: {
+      recitation: `الجزء ${recitationJuz}`,
+      listening: `الحزب ${listeningHizb}`,
+    },
     prepWeekly,
     prepNight,
     prepPre,
     newHifz,
     reviewNear,
     reviewFar,
-    taskKeys: taskKeys as any[], // Using any to avoid complex TS type for dynamic keys
+    taskKeys,
   };
 };
 

@@ -1,62 +1,104 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useMemo } from 'react';
-import { useHifzStore } from '@/store/useHifzStore';
-import DailyChecklist from '@/components/DailyChecklist';
-import StatsDashboard from '@/components/StatsDashboard';
-import ScheduleView from '@/components/ScheduleView';
-import Onboarding from '@/components/Onboarding';
-import ThemeToggle from '@/components/ThemeToggle';
-import { motion, AnimatePresence } from 'framer-motion';
+import Onboarding from "@/components/Onboarding";
+import ReviewSessionView from "@/components/ReviewSessionView";
+import ScheduleView from "@/components/ScheduleView";
+import SessionView from "@/components/SessionView";
+import StatsDashboard from "@/components/StatsDashboard";
+import ThemeToggle from "@/components/ThemeToggle";
+import HomeTab from "@/components/tabs/HomeTab";
+import PrepTab from "@/components/tabs/PrepTab";
+import ReviewTab from "@/components/tabs/ReviewTab";
+import SettingsModal from "@/components/SettingsModal";
+import { Button } from "@/components/ui/button";
+import { THUMUNS_PER_JUZ, TOTAL_THUMUNS } from "@/lib/constants";
+import { getFortressTasks } from "@/lib/fortress-calculator";
+import { useHifzStore } from "@/store/useHifzStore";
+import { AnimatePresence, motion } from "framer-motion";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
-import { RotateCcw, Flame, Sparkles, Trophy, BookOpen } from 'lucide-react';
-import { getFortressTasks } from '@/lib/fortress-calculator';
-import { TOTAL_THUMUNS, THUMUNS_PER_JUZ } from '@/lib/constants';
+  BarChart2, BookOpenCheck, CalendarDays, Flame, Home, Settings as SettingsIcon, Shield, Trophy,
+} from "lucide-react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useSwipeable } from "react-swipeable";
+import { vibrateLight } from "@/lib/haptic";
 
-type TabType = 'daily' | 'schedule' | 'stats';
+type ActiveSession = { type: string; target: Record<string, unknown> } | null;
+type TabType = "home" | "prep" | "review" | "plan" | "stats";
 
 export default function HosoonApp() {
-  const { showOnboarding, resetProgress, currentDay, streak, bestStreak, completedTasks, farReviewPointer } = useHifzStore();
-  const [hydrated, setHydrated] = useState(false);
-  const [showReset, setShowReset] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>('daily');
+  const {
+    showOnboarding, resetProgress, toggleTask, currentDay,
+    streak, bestStreak, completedTasks, farReviewPointer,
+  } = useHifzStore();
 
-  useEffect(() => setHydrated(true), []);
+  const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>("home");
+  const [activeSession, setActiveSession] = useState<ActiveSession>(null);
 
-  const tasks = getFortressTasks(currentDay, farReviewPointer || 1);
+  useEffect(() => {
+    const handler = (e: Event) => setActiveSession((e as CustomEvent).detail ?? null);
+    window.addEventListener("openSession", handler);
+    return () => window.removeEventListener("openSession", handler);
+  }, []);
+
+  const tasks = useMemo(
+    () => getFortressTasks(currentDay, farReviewPointer || 1),
+    [currentDay, farReviewPointer],
+  );
   const dayTasks = completedTasks[currentDay] || {};
-  const completedCount = tasks.taskKeys.filter((key) => dayTasks[key]).length;
-  const progressPercentage = (completedCount / tasks.taskKeys.length) * 100 || 0;
-  
-  const highestCompletedDay = useMemo(() => {
-    const days = Object.keys(completedTasks).map(Number).filter(d => {
-      const t = completedTasks[d];
-      return Object.values(t).some(Boolean);
-    });
+  const completedCount = tasks.taskKeys.filter((k) => dayTasks[k]).length;
+  const totalTasks = tasks.taskKeys.length;
+  const progressPct = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0;
+
+  const highestDay = useMemo(() => {
+    const days = Object.keys(completedTasks).map(Number)
+      .filter((d) => Object.values(completedTasks[d]).some(Boolean));
     return days.length > 0 ? Math.max(...days) : 0;
   }, [completedTasks]);
 
-  const overallPercentage = (highestCompletedDay / TOTAL_THUMUNS) * 100;
-  const juzCount = Math.floor(highestCompletedDay / THUMUNS_PER_JUZ);
+  const overallPct = ((highestDay / TOTAL_THUMUNS) * 100).toFixed(1);
+  const juzCount = Math.floor(highestDay / THUMUNS_PER_JUZ);
 
-  // Greeting based on time
   const greeting = useMemo(() => {
-    const hour = new Date().getHours();
-    if (hour < 5) return 'قياماً مقبولاً';
-    if (hour < 12) return 'صباح الهمة';
-    if (hour < 17) return 'مساء الخير';
-    return 'مساء السكينة';
+    const h = new Date().getHours();
+    if (h < 5) return "قياماً مقبولاً";
+    if (h < 12) return "صباح الهمة";
+    if (h < 17) return "مساء الخير";
+    return "مساء السكينة";
   }, []);
+
+  // Progress ring
+  const R = 38, SW = 5, C = 2 * Math.PI * R;
+  const offset = C - (progressPct / 100) * C;
+
+  const tabs: { id: TabType; label: string; icon: typeof Home }[] = useMemo(() => [
+    { id: "home", label: "الرئيسية", icon: Home },
+    { id: "prep", label: "التحضير", icon: BookOpenCheck },
+    { id: "review", label: "المراجعة", icon: Shield },
+    { id: "plan", label: "الخطة", icon: CalendarDays },
+    { id: "stats", label: "إحصائيات", icon: BarChart2 },
+  ], []);
+
+  const swipeHandlers = useSwipeable({
+    onSwipedLeft: () => {
+      const currentIndex = tabs.findIndex(t => t.id === activeTab);
+      if (currentIndex < tabs.length - 1) {
+        setActiveTab(tabs[currentIndex + 1].id);
+        vibrateLight();
+      }
+    },
+    onSwipedRight: () => {
+      const currentIndex = tabs.findIndex(t => t.id === activeTab);
+      if (currentIndex > 0) {
+        setActiveTab(tabs[currentIndex - 1].id);
+        vibrateLight();
+      }
+    },
+    trackMouse: false,
+    preventScrollOnSwipe: true,
+  });
+
 
   if (!hydrated) {
     return (
@@ -65,229 +107,131 @@ export default function HosoonApp() {
       </div>
     );
   }
+  if (showOnboarding) return <Onboarding />;
 
-  if (showOnboarding) {
-    return <Onboarding />;
-  }
-
-  // Ring calculations for the Hero section
-  const ringSize = 64;
-  const ringStroke = 4;
-  const ringRadius = (ringSize - ringStroke) / 2;
-  const ringCircumference = 2 * Math.PI * ringRadius;
-  const ringOffset = ringCircumference - (progressPercentage / 100) * ringCircumference;
 
   return (
-    <main className="min-h-screen pb-24 lg:pb-12 px-4 sm:px-6 lg:px-8 relative z-10">
-      <div className="max-w-4xl mx-auto space-y-8 pt-6">
-        
-        {/* Top Navbar */}
-        <nav className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-primary-foreground font-bold text-xl shadow-lg shadow-primary/20">
-              ح
+    <main {...swipeHandlers} className="min-h-screen pb-28 bg-background text-foreground relative" dir="rtl">
+      {/* ─── Glow Background ─── */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute top-[-5%] left-[-10%] w-[60vw] h-[60vw] rounded-full bg-primary/10 blur-[100px] sm:blur-[120px] mix-blend-screen" />
+        <div className="absolute top-[40%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-accent/10 blur-[100px] sm:blur-[120px] mix-blend-screen" />
+      </div>
+
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-5 space-y-5 relative z-10">
+
+        {/* ─── Header ─── */}
+        <header className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-sm">ح</span>
             </div>
-            <span className="font-bold text-lg hidden sm:block">حصون</span>
+            <span className="font-bold text-lg text-foreground tracking-tight">حصون</span>
           </div>
-          <div className="flex items-center gap-1 bg-muted/50 rounded-full p-1 backdrop-blur-md border border-border/50">
-            <ThemeToggle />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="rounded-full w-9 h-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-              onClick={() => setShowReset(true)}
-              title="إعادة تعيين التقدم"
-            >
-              <RotateCcw className="w-4 h-4" />
+          <div className="flex items-center gap-1.5">
+            <Button variant="ghost" size="icon" className="text-muted-foreground" onClick={() => { vibrateLight(); setShowSettings(true); }}>
+              <SettingsIcon className="w-[20px] h-[20px]" />
             </Button>
+            <ThemeToggle />
           </div>
-        </nav>
+        </header>
 
-        {/* Hero Section */}
-        <section className="glass-card-premium rounded-3xl p-6 sm:p-8 relative overflow-hidden">
-          {/* Decorative background blur */}
-          <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-secondary/20 rounded-full blur-3xl pointer-events-none" />
-          
-          <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-primary">
-                <Sparkles className="w-5 h-5 animate-pulse" />
-                <span className="font-medium">{greeting}</span>
-              </div>
-              <div>
-                <h1 className="text-3xl sm:text-4xl font-bold mb-2">
-                  اليوم {currentDay} <span className="text-muted-foreground font-normal text-xl sm:text-2xl">من رحلتك</span>
-                </h1>
-                <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  <span>{overallPercentage.toFixed(1)}% من الختمة</span>
-                  <span className="w-1 h-1 rounded-full bg-border" />
-                  <span>{highestCompletedDay} ثمن منجز</span>
-                </p>
-              </div>
+        {/* ─── Hero Card ─── */}
+        <section className="surface-card p-5 sm:p-6">
+          <div className="flex items-start justify-between mb-5">
+            <div className="space-y-1">
+              <p className="text-primary text-sm font-semibold">{greeting}</p>
+              <h1 className="text-foreground">
+                <span className="text-3xl sm:text-4xl font-extrabold">اليوم {currentDay}</span>
+                <span className="text-base font-medium text-muted-foreground mr-2">من الرحلة</span>
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {overallPct}% المنجز كلياً · {highestDay} ثمن مكتمل
+              </p>
             </div>
-
-            {/* Daily Progress Ring */}
-            <div className="flex items-center gap-4 bg-background/50 rounded-2xl p-4 border border-border/50 backdrop-blur-sm">
-              <div>
-                <p className="text-sm font-medium mb-1">مهام اليوم</p>
-                <p className="text-xs text-muted-foreground">{completedCount} من {tasks.taskKeys.length} مكتملة</p>
-              </div>
-              <div className="relative">
-                <svg width={ringSize} height={ringSize} className="transform -rotate-90">
-                  <circle
-                    cx={ringSize / 2}
-                    cy={ringSize / 2}
-                    r={ringRadius}
-                    stroke="currentColor"
-                    strokeWidth={ringStroke}
-                    fill="none"
-                    className="text-muted/20"
-                  />
-                  <motion.circle
-                    cx={ringSize / 2}
-                    cy={ringSize / 2}
-                    r={ringRadius}
-                    stroke="url(#heroGrad)"
-                    strokeWidth={ringStroke}
-                    fill="none"
-                    strokeLinecap="round"
-                    initial={{ strokeDasharray: ringCircumference, strokeDashoffset: ringCircumference }}
-                    animate={{ strokeDashoffset: ringOffset }}
-                    transition={{ duration: 1, ease: "easeOut" }}
-                  />
-                  <defs>
-                    <linearGradient id="heroGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="var(--color-primary)" />
-                      <stop offset="100%" stopColor="var(--color-secondary)" />
-                    </linearGradient>
-                  </defs>
+            <div className="flex flex-col items-center gap-1">
+              <p className="text-xs text-muted-foreground">مهام اليوم</p>
+              <div className="relative w-20 h-20">
+                <svg width="80" height="80" className="-rotate-90">
+                  <circle cx="40" cy="40" r={R} strokeWidth={SW} className="stroke-border" fill="none" />
+                  <motion.circle cx="40" cy="40" r={R} strokeWidth={SW} className="stroke-primary"
+                    fill="none" strokeLinecap="round" strokeDasharray={C}
+                    initial={{ strokeDashoffset: C }} animate={{ strokeDashoffset: offset }}
+                    transition={{ duration: 0.6, ease: "easeOut" }} />
                 </svg>
-                <div className="absolute inset-0 flex items-center justify-center text-xs font-bold">
-                  {Math.round(progressPercentage)}%
-                </div>
+                <span className="absolute inset-0 grid place-items-center">
+                  <span className="text-lg font-bold">{completedCount}<span className="text-muted-foreground text-xs font-normal">/{totalTasks}</span></span>
+                </span>
               </div>
+              <p className="text-[10px] text-muted-foreground font-medium">{progressPct}%</p>
             </div>
           </div>
 
-          {/* Quick Stats Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-border/20 relative z-10">
-            {/* Stat 1: Current Streak */}
-            <motion.div 
-              whileHover={{ y: -3, transition: { duration: 0.2 } }}
-              className="bg-background/40 backdrop-blur-md rounded-2xl p-3 border border-border/40 flex items-center gap-3 transition-colors hover:bg-background/60"
-            >
-              <div className="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-500 flex items-center justify-center shrink-0 shadow-inner">
-                <Flame className="w-5 h-5 animate-bounce" style={{ animationDuration: '2s' }} />
+          {/* Stats Row */}
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { icon: Flame, label: "السلسلة", value: `${streak} أيام`, color: "text-orange-400" },
+              { icon: Trophy, label: "أفضل سلسلة", value: `${bestStreak} أيام`, color: "text-amber-400" },
+              { icon: BookOpenCheck, label: "المنجز", value: `${highestDay} ثمن`, color: "text-primary" },
+              { icon: CalendarDays, label: "الأجزاء", value: `${juzCount} جزء`, color: "text-sky-400" },
+            ].map((s) => (
+              <div key={s.label} className="bg-surface rounded-xl p-2.5 flex flex-col items-center gap-1.5 text-center">
+                <s.icon className={`w-4 h-4 ${s.color}`} />
+                <p className="text-[10px] text-muted-foreground leading-none">{s.label}</p>
+                <p className={`text-xs font-bold leading-none ${s.color}`}>{s.value}</p>
               </div>
-              <div>
-                <p className="text-[11px] text-muted-foreground font-medium leading-none mb-1">السلسلة الحالية</p>
-                <p className="text-sm font-bold text-orange-500 leading-none">
-                  {streak} {streak === 1 || streak >= 11 ? 'يوم' : streak === 2 ? 'يومان' : streak >= 3 && streak <= 10 ? 'أيام' : 'يوم'}
-                </p>
-              </div>
-            </motion.div>
-
-            {/* Stat 2: Best Streak */}
-            <motion.div 
-              whileHover={{ y: -3, transition: { duration: 0.2 } }}
-              className="bg-background/40 backdrop-blur-md rounded-2xl p-3 border border-border/40 flex items-center gap-3 transition-colors hover:bg-background/60"
-            >
-              <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0 shadow-inner">
-                <Trophy className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-[11px] text-muted-foreground font-medium leading-none mb-1">أفضل سلسلة</p>
-                <p className="text-sm font-bold text-amber-600 dark:text-amber-400 leading-none">
-                  {bestStreak} {bestStreak === 1 || bestStreak >= 11 ? 'يوم' : bestStreak === 2 ? 'يومان' : bestStreak >= 3 && bestStreak <= 10 ? 'أيام' : 'يوم'}
-                </p>
-              </div>
-            </motion.div>
-
-            {/* Stat 3: Memorized Juz */}
-            <motion.div 
-              whileHover={{ y: -3, transition: { duration: 0.2 } }}
-              className="bg-background/40 backdrop-blur-md rounded-2xl p-3 border border-border/40 flex items-center gap-3 transition-colors hover:bg-background/60"
-            >
-              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-inner">
-                <BookOpen className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-[11px] text-muted-foreground font-medium leading-none mb-1">الأجزاء المحفوظة</p>
-                <p className="text-sm font-bold text-foreground leading-none">
-                  {juzCount} <span className="text-xs text-muted-foreground font-normal">/ 30</span>
-                </p>
-              </div>
-            </motion.div>
-
-
+            ))}
           </div>
         </section>
 
-        {/* Modern Segmented Control */}
-        <div className="flex p-1 bg-muted/40 backdrop-blur-md rounded-2xl border border-border/50 max-w-[400px] mx-auto relative">
-          {(['daily', 'schedule', 'stats'] as TabType[]).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`relative flex-1 py-2.5 text-sm font-medium transition-colors z-10 ${
-                activeTab === tab ? 'text-foreground' : 'text-muted-foreground hover:text-foreground/80'
-              }`}
-            >
-              {tab === 'daily' ? 'مهام اليوم' : tab === 'schedule' ? 'الجدول' : 'الإحصائيات'}
-              {activeTab === tab && (
-                <motion.div
-                  layoutId="activeTab"
-                  className="absolute inset-0 bg-card rounded-xl shadow-sm border border-border/50 -z-10"
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                />
-              )}
+        {/* ─── Tab Content ─── */}
+        <AnimatePresence mode="wait">
+          <motion.div key={activeTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}>
+            {activeTab === "home" && <HomeTab tasks={tasks} dayTasks={dayTasks} currentDay={currentDay} />}
+            {activeTab === "prep" && <PrepTab tasks={tasks} dayTasks={dayTasks} currentDay={currentDay} />}
+            {activeTab === "review" && <ReviewTab tasks={tasks} dayTasks={dayTasks} currentDay={currentDay} />}
+            {activeTab === "plan" && <ScheduleView />}
+            {activeTab === "stats" && <StatsDashboard />}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* ─── Bottom Nav (5 tabs) ─── */}
+      <nav className="fixed bottom-0 left-0 right-0 border-t border-border bg-background/95 backdrop-blur-lg z-50 pb-safe">
+        <div className="max-w-2xl mx-auto flex items-center justify-around py-2 px-1">
+          {tabs.map((t) => (
+            <button key={t.id} onClick={() => { setActiveTab(t.id); vibrateLight(); }}
+              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-all ${
+                activeTab === t.id ? "text-primary" : "text-muted-foreground"
+              }`}>
+              <t.icon className="w-5 h-5" strokeWidth={activeTab === t.id ? 2.5 : 1.5} />
+              <span className="text-[10px] font-medium leading-none">{t.label}</span>
             </button>
           ))}
         </div>
+      </nav>
 
-        {/* Content Area */}
-        <div className="min-h-[400px]">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-            >
-              {activeTab === 'daily' && <DailyChecklist />}
-              {activeTab === 'schedule' && <ScheduleView />}
-              {activeTab === 'stats' && <StatsDashboard />}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-      </div>
+      {/* ─── Settings Modal ─── */}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
 
-      {/* Reset confirmation */}
-      <AlertDialog open={showReset} onOpenChange={setShowReset}>
-        <AlertDialogContent dir="rtl" className="rounded-3xl border-border/50 glass-panel">
-          <AlertDialogHeader>
-            <AlertDialogTitle>إعادة تعيين التقدم</AlertDialogTitle>
-            <AlertDialogDescription>
-              هل أنت متأكد؟ سيتم حذف جميع بيانات التقدم والملاحظات. هذا
-              الإجراء لا يمكن التراجع عنه.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-row-reverse gap-2 sm:gap-0 mt-6">
-            <AlertDialogAction
-              onClick={() => {
-                resetProgress();
-                setShowReset(false);
-              }}
-              className="bg-destructive hover:bg-destructive/90 text-white rounded-xl"
-            >
-              نعم، أعد التعيين
-            </AlertDialogAction>
-            <AlertDialogCancel className="rounded-xl border-border/50">إلغاء</AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* ─── Session Overlays ─── */}
+      <AnimatePresence>
+        {activeSession?.type === "new_hifz" && (
+          <SessionView key="s_new" surah={activeSession.target.surah}
+            juz={activeSession.target.juz} hizb={activeSession.target.hizb} id={activeSession.target.id}
+            startText={activeSession.target.startText}
+            onComplete={() => { toggleTask(currentDay, "new_hifz"); setActiveSession(null); }}
+            onClose={() => setActiveSession(null)} />
+        )}
+        {activeSession?.type === "review_near" && (
+          <ReviewSessionView key="s_rev" surah={activeSession.target.surah}
+            juz={activeSession.target.juz} hizb={activeSession.target.hizb} id={activeSession.target.id}
+            startText={activeSession.target.startText}
+            onComplete={() => { toggleTask(currentDay, "review_near"); setActiveSession(null); }}
+            onClose={() => setActiveSession(null)} />
+        )}
+      </AnimatePresence>
     </main>
   );
 }

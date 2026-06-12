@@ -1,17 +1,18 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { TOTAL_THUMUNS } from '@/lib/constants';
+import { TOTAL_THUMUNS } from "@/lib/constants";
+import { useEffect, useState } from "react";
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 export type TaskType =
-  | 'khatma'
-  | 'prep_weekly'
-  | 'prep_night'
-  | 'prep_pre'
-  | 'new_hifz'
-  | 'review_near'
-  | 'review_far';
+  | "khatma"
+  | "prep_weekly"
+  | "prep_night"
+  | "prep_pre"
+  | "new_hifz"
+  | "review_near"
+  | "review_far";
 
-interface DailyTasks {
+export interface DailyTasks {
   [taskType: string]: boolean;
 }
 
@@ -50,14 +51,18 @@ interface HifzState {
   resetProgress: () => void;
   setNote: (thumunId: number, note: string) => void;
   completeOnboarding: () => void;
-  recordDailyCompletion: (day: number, completedAll: boolean, tasksCompleted: number) => void;
+  recordDailyCompletion: (
+    day: number,
+    completedAll: boolean,
+    tasksCompleted: number,
+  ) => void;
 }
 
-const getToday = () => new Date().toISOString().split('T')[0];
+const getToday = () => new Date().toISOString().split("T")[0];
 
 const calculateStreak = (
   lastActiveDate: string,
-  currentStreak: number
+  currentStreak: number,
 ): { streak: number; resetStreak: boolean } => {
   const today = getToday();
   if (lastActiveDate === today) {
@@ -67,7 +72,7 @@ const calculateStreak = (
   const last = new Date(lastActiveDate);
   const now = new Date(today);
   const diffDays = Math.floor(
-    (now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24)
+    (now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24),
   );
 
   if (diffDays === 1) {
@@ -80,13 +85,13 @@ const calculateStreak = (
 
 export const useHifzStore = create<HifzState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       currentDay: 1,
       startDate: new Date().toISOString(),
       completedTasks: {},
       streak: 0,
       bestStreak: 0,
-      lastActiveDate: '',
+      lastActiveDate: "",
       dailyLog: {},
       notes: {},
       showOnboarding: true,
@@ -108,7 +113,7 @@ export const useHifzStore = create<HifzState>()(
           const today = getToday();
           const { streak: newStreak } = calculateStreak(
             state.lastActiveDate,
-            state.streak
+            state.streak,
           );
           const updatedStreak =
             state.lastActiveDate === today ? state.streak : newStreak;
@@ -116,11 +121,11 @@ export const useHifzStore = create<HifzState>()(
           const currentDay = state.currentDay;
           const currentPoolSize = currentDay - 9;
           let nextPointer = state.farReviewPointer || 1;
-          
+
           if (currentPoolSize > 0) {
-            const rate = currentDay <= 240 ? 16 : (currentDay <= 360 ? 24 : 32);
+            const rate = currentDay <= 240 ? 16 : currentDay <= 360 ? 24 : 32;
             nextPointer += rate;
-            const nextPoolSize = (currentDay + 1) - 9;
+            const nextPoolSize = currentDay + 1 - 9;
             if (nextPointer > nextPoolSize) {
               nextPointer = 1;
             }
@@ -178,16 +183,17 @@ export const useHifzStore = create<HifzState>()(
         }),
     }),
     {
-      name: 'hifz-storage',
-    }
-  )
+      name: "hifz-storage",
+    },
+  ),
 );
 
 // Hydration helper for SSR safety
 export const useHifzHydrated = () => {
-  const [hydrated, setHydrated] = React.useState(false);
-  React.useEffect(() => setHydrated(true), []);
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setHydrated(true), 0);
+    return () => clearTimeout(id);
+  }, []);
   return hydrated;
 };
-
-import React from 'react';

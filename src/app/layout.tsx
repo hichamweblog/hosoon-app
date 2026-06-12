@@ -1,20 +1,20 @@
-import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Sans_Arabic, Amiri } from "next/font/google";
-import "./globals.css";
 import { Providers } from "@/components/Providers";
+import type { Metadata, Viewport } from "next";
+import { Amiri, IBM_Plex_Sans_Arabic } from "next/font/google";
 import { Toaster } from "sonner";
+import "./globals.css";
 
 const ibmPlex = IBM_Plex_Sans_Arabic({
   subsets: ["arabic", "latin"],
   weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-ibm-plex",
+  variable: "--font-sans",
   display: "swap",
 });
 
 const amiri = Amiri({
   subsets: ["arabic"],
   weight: ["400", "700"],
-  variable: "--font-amiri",
+  variable: "--font-quran",
   display: "swap",
 });
 
@@ -46,8 +46,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F8FAFC" },
-    { media: "(prefers-color-scheme: dark)", color: "#0B1020" },
+    { media: "(prefers-color-scheme: light)", color: "#FAF7F1" },
+    { media: "(prefers-color-scheme: dark)", color: "#14181A" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -64,8 +64,7 @@ export default function RootLayout({
       lang="ar"
       dir="rtl"
       className={`${ibmPlex.variable} ${amiri.variable} h-full antialiased`}
-      suppressHydrationWarning
-    >
+      suppressHydrationWarning>
       <body className="min-h-full flex flex-col selection:bg-primary/20 selection:text-primary">
         <Providers>{children}</Providers>
         <Toaster position="bottom-center" theme="system" richColors />

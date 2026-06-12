@@ -1,5 +1,5 @@
-const sharp = require('sharp');
-const fs = require('fs');
+import fs from "fs";
+import sharp from "sharp";
 
 const svg = `
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
@@ -16,11 +16,11 @@ const svg = `
 `;
 
 async function run() {
-  fs.writeFileSync('icon.svg', svg);
-  await sharp('icon.svg').resize(192, 192).png().toFile('public/icon-192.png');
-  await sharp('icon.svg').resize(512, 512).png().toFile('public/icon-512.png');
-  fs.unlinkSync('icon.svg');
-  console.log('Icons generated successfully.');
+  fs.writeFileSync("icon.svg", svg);
+  await sharp("icon.svg").resize(192, 192).png().toFile("public/icon-192.png");
+  await sharp("icon.svg").resize(512, 512).png().toFile("public/icon-512.png");
+  fs.unlinkSync("icon.svg");
+  console.log("Icons generated successfully.");
 }
 
 run().catch(console.error);
