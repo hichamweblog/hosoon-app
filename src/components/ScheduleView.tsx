@@ -128,6 +128,10 @@ export default function ScheduleView() {
         <div 
           ref={scrollRef}
           className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar gap-3 pb-4 px-2"
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           {weeklyDays.map((d) => (
             <div 

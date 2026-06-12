@@ -83,15 +83,15 @@ export default function HosoonApp() {
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => {
       const currentIndex = tabs.findIndex(t => t.id === activeTab);
-      if (currentIndex < tabs.length - 1) {
-        setActiveTab(tabs[currentIndex + 1].id);
+      if (currentIndex > 0) {
+        setActiveTab(tabs[currentIndex - 1].id);
         vibrateLight();
       }
     },
     onSwipedRight: () => {
       const currentIndex = tabs.findIndex(t => t.id === activeTab);
-      if (currentIndex > 0) {
-        setActiveTab(tabs[currentIndex - 1].id);
+      if (currentIndex < tabs.length - 1) {
+        setActiveTab(tabs[currentIndex + 1].id);
         vibrateLight();
       }
     },
