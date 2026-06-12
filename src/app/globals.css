@@ -1,26 +1,155 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
+
+/* ===== Modern Premium Design System (2026) ===== */
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-ibm-plex);
+  --font-heading: var(--font-ibm-plex);
+  --font-quran: var(--font-amiri);
+  
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+  --radius-3xl: 2.5rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Light Theme (Softer, clean look) */
+:root {
+  --background: #F8FAFC; /* Slate 50 */
+  --foreground: #0F172A; /* Slate 900 */
+  --card: #FFFFFF;
+  --card-foreground: #0F172A;
+  --popover: #FFFFFF;
+  --popover-foreground: #0F172A;
+  --primary: #0D9488; /* Teal 600 */
+  --primary-foreground: #FFFFFF;
+  --secondary: #0284C7; /* Sky 600 */
+  --secondary-foreground: #FFFFFF;
+  --accent: #D97706; /* Amber 600 */
+  --accent-foreground: #FFFFFF;
+  --success: #16A34A; /* Green 600 */
+  --success-foreground: #FFFFFF;
+  --muted: #F1F5F9; /* Slate 100 */
+  --muted-foreground: #64748B; /* Slate 500 */
+  --border: #E2E8F0; /* Slate 200 */
+  --input: #E2E8F0;
+  --ring: #0D9488;
+}
+
+/* Dark Theme (Premium Deep Navy) */
+.dark {
+  --background: #0B1020; /* Deep Navy */
+  --foreground: #F8FAFC; /* Slate 50 */
+  --card: #111827; /* Gray 900 */
+  --card-foreground: #F8FAFC;
+  --popover: #111827;
+  --popover-foreground: #F8FAFC;
+  --primary: #14B8A6; /* Teal 500 */
+  --primary-foreground: #042F2E; /* Teal 950 */
+  --secondary: #0EA5E9; /* Sky 500 */
+  --secondary-foreground: #082F49; /* Sky 900 */
+  --accent: #F59E0B; /* Amber 500 */
+  --accent-foreground: #451A03; /* Amber 950 */
+  --success: #22C55E; /* Green 500 */
+  --success-foreground: #052E16; /* Green 950 */
+  --muted: #1E293B; /* Slate 800 */
+  --muted-foreground: #94A3B8; /* Slate 400 */
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.08);
+  --ring: #14B8A6;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  .glass-panel {
+    background: rgba(17, 24, 39, 0.4);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  }
+  
+  .light .glass-panel {
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+  }
+
+  .glass-card-premium {
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 8px 32px rgba(0, 0, 0, 0.2);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  .glass-card-premium:hover {
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1), 0 12px 40px rgba(0, 0, 0, 0.3);
+  }
+
+  .text-gradient-primary {
+    background: linear-gradient(to right, var(--primary), var(--secondary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .verse-text {
+    font-family: var(--font-amiri), 'Amiri', serif;
+    line-height: 2.2;
+    letter-spacing: 0;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5);
+  }
 }
