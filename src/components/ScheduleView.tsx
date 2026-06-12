@@ -105,12 +105,12 @@ export default function ScheduleView() {
     return { weeklyDays: weekly, juzMilestones: Object.values(milestones), currentJuz: currJuz };
   }, [maxDays, currentDay, completedTasks, farReviewPointer]);
 
-  // Scroll weekly slider to current day
+  // We no longer need to auto-scroll horizontally since it's a vertical list
   useEffect(() => {
     if (scrollRef.current) {
       const todayEl = scrollRef.current.querySelector('[data-today="true"]');
       if (todayEl) {
-        todayEl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+        // Optional: scroll into view vertically if desired, but usually not needed for a short list
       }
     }
   }, [currentDay]);
@@ -125,20 +125,13 @@ export default function ScheduleView() {
           <h2 className="font-bold text-lg">هذا الأسبوع</h2>
         </div>
         
-        <div 
-          ref={scrollRef}
-          className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar gap-3 pb-4 px-2"
-          onTouchStart={(e) => e.stopPropagation()}
-          onTouchMove={(e) => e.stopPropagation()}
-          onTouchEnd={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
+        <div className="flex flex-col gap-3 px-2">
           {weeklyDays.map((d) => (
             <div 
               key={`week-${d.day}`}
               data-today={d.isToday}
               onClick={() => { vibrateLight(); setPreviewDay(d.day); }}
-              className={`snap-center shrink-0 w-[240px] p-4 rounded-2xl border cursor-pointer transition-all ${
+              className={`w-full p-4 rounded-2xl border cursor-pointer transition-all ${
                 d.isToday 
                   ? "bg-surface-raised border-primary shadow-lg ring-1 ring-primary/30" 
                   : d.isCompleted
@@ -146,21 +139,16 @@ export default function ScheduleView() {
                     : "bg-surface border-border hover:border-primary/50"
               }`}
             >
-              <div className="flex justify-between items-start mb-3">
+              <div className="flex justify-between items-center mb-2">
                 <span className={`text-sm font-bold ${d.isToday ? "text-primary" : "text-muted-foreground"}`}>
                   اليوم {d.day}
                 </span>
                 {d.isCompleted && <CheckCircle2 className="w-5 h-5 text-primary" />}
               </div>
-              <h3 className={`font-bold text-lg mb-1 ${d.isCompleted ? "line-through text-muted-foreground" : ""}`}>
+              <h3 className={`font-bold text-lg ${d.isCompleted ? "line-through text-muted-foreground" : ""}`}>
                 {d.surah}
               </h3>
-              {d.range && <p className="text-sm text-secondary mb-2">{d.range}</p>}
-              {d.startText && (
-                <p className="font-quran text-foreground/80 leading-loose text-sm truncate">
-                  &quot;{d.startText}&quot;
-                </p>
-              )}
+              {d.range && <p className="text-sm text-secondary mt-1">{d.range}</p>}
             </div>
           ))}
         </div>
