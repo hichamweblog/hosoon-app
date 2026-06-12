@@ -2,7 +2,7 @@
 
 import { useHifzStore } from '@/store/useHifzStore';
 import { useMemo } from 'react';
-import { TOTAL_THUMUNS, MILESTONES } from '@/lib/constants';
+import { TOTAL_THUMUNS, MILESTONES, THUMUNS_PER_JUZ } from '@/lib/constants';
 import { motion } from 'framer-motion';
 import {
   Trophy,
@@ -46,8 +46,8 @@ export default function StatsDashboard() {
 
   const totalCompleted = highestCompletedDay;
   const progressPercentage = (totalCompleted / TOTAL_THUMUNS) * 100;
-  const juzCount = Math.floor(totalCompleted / 8);
-  const hizbCount = Math.floor(totalCompleted / 4);
+  const juzCount = Math.floor(totalCompleted / THUMUNS_PER_JUZ);
+  const hizbCount = Math.floor(totalCompleted / 8);
 
   // Generate chart data for the last 30 days
   const chartData = Array.from({ length: 30 }).map((_, i) => {
@@ -90,7 +90,7 @@ export default function StatsDashboard() {
           <p className="text-sm text-muted-foreground mb-1">الأجزاء المحفوظة</p>
           <div className="flex items-baseline gap-2">
             <h3 className="text-3xl font-bold">{juzCount}</h3>
-            <span className="text-sm text-muted-foreground">/ 60</span>
+            <span className="text-sm text-muted-foreground">/ 30</span>
           </div>
         </motion.div>
 

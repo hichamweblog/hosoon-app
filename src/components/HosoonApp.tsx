@@ -19,21 +19,21 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, Flame, Sparkles } from 'lucide-react';
+import { RotateCcw, Flame, Sparkles, Trophy, BookOpen } from 'lucide-react';
 import { getFortressTasks } from '@/lib/fortress-calculator';
-import { TOTAL_THUMUNS } from '@/lib/constants';
+import { TOTAL_THUMUNS, THUMUNS_PER_JUZ } from '@/lib/constants';
 
 type TabType = 'daily' | 'schedule' | 'stats';
 
 export default function HosoonApp() {
-  const { showOnboarding, resetProgress, currentDay, streak, completedTasks } = useHifzStore();
+  const { showOnboarding, resetProgress, currentDay, streak, bestStreak, completedTasks, farReviewPointer } = useHifzStore();
   const [hydrated, setHydrated] = useState(false);
   const [showReset, setShowReset] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('daily');
 
   useEffect(() => setHydrated(true), []);
 
-  const tasks = getFortressTasks(currentDay);
+  const tasks = getFortressTasks(currentDay, farReviewPointer || 1);
   const dayTasks = completedTasks[currentDay] || {};
   const completedCount = tasks.taskKeys.filter((key) => dayTasks[key]).length;
   const progressPercentage = (completedCount / tasks.taskKeys.length) * 100 || 0;
@@ -47,6 +47,7 @@ export default function HosoonApp() {
   }, [completedTasks]);
 
   const overallPercentage = (highestCompletedDay / TOTAL_THUMUNS) * 100;
+  const juzCount = Math.floor(highestCompletedDay / THUMUNS_PER_JUZ);
 
   // Greeting based on time
   const greeting = useMemo(() => {
@@ -111,7 +112,7 @@ export default function HosoonApp() {
           <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-primary">
-                <Sparkles className="w-5 h-5" />
+                <Sparkles className="w-5 h-5 animate-pulse" />
                 <span className="font-medium">{greeting}</span>
               </div>
               <div>
@@ -121,10 +122,7 @@ export default function HosoonApp() {
                 <p className="text-sm text-muted-foreground flex items-center gap-2">
                   <span>{overallPercentage.toFixed(1)}% من الختمة</span>
                   <span className="w-1 h-1 rounded-full bg-border" />
-                  <span className="flex items-center gap-1 text-accent font-medium">
-                    <Flame className="w-4 h-4" />
-                    {streak} أيام متتالية
-                  </span>
+                  <span>{highestCompletedDay} ثمن منجز</span>
                 </p>
               </div>
             </div>
@@ -170,6 +168,59 @@ export default function HosoonApp() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Quick Stats Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-border/20 relative z-10">
+            {/* Stat 1: Current Streak */}
+            <motion.div 
+              whileHover={{ y: -3, transition: { duration: 0.2 } }}
+              className="bg-background/40 backdrop-blur-md rounded-2xl p-3 border border-border/40 flex items-center gap-3 transition-colors hover:bg-background/60"
+            >
+              <div className="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-500 flex items-center justify-center shrink-0 shadow-inner">
+                <Flame className="w-5 h-5 animate-bounce" style={{ animationDuration: '2s' }} />
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground font-medium leading-none mb-1">السلسلة الحالية</p>
+                <p className="text-sm font-bold text-orange-500 leading-none">
+                  {streak} {streak === 1 || streak >= 11 ? 'يوم' : streak === 2 ? 'يومان' : streak >= 3 && streak <= 10 ? 'أيام' : 'يوم'}
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Stat 2: Best Streak */}
+            <motion.div 
+              whileHover={{ y: -3, transition: { duration: 0.2 } }}
+              className="bg-background/40 backdrop-blur-md rounded-2xl p-3 border border-border/40 flex items-center gap-3 transition-colors hover:bg-background/60"
+            >
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0 shadow-inner">
+                <Trophy className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground font-medium leading-none mb-1">أفضل سلسلة</p>
+                <p className="text-sm font-bold text-amber-600 dark:text-amber-400 leading-none">
+                  {bestStreak} {bestStreak === 1 || bestStreak >= 11 ? 'يوم' : bestStreak === 2 ? 'يومان' : bestStreak >= 3 && bestStreak <= 10 ? 'أيام' : 'يوم'}
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Stat 3: Memorized Juz */}
+            <motion.div 
+              whileHover={{ y: -3, transition: { duration: 0.2 } }}
+              className="bg-background/40 backdrop-blur-md rounded-2xl p-3 border border-border/40 flex items-center gap-3 transition-colors hover:bg-background/60"
+            >
+              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-inner">
+                <BookOpen className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground font-medium leading-none mb-1">الأجزاء المحفوظة</p>
+                <p className="text-sm font-bold text-foreground leading-none">
+                  {juzCount} <span className="text-xs text-muted-foreground font-normal">/ 30</span>
+                </p>
+              </div>
+            </motion.div>
+
+
           </div>
         </section>
 
