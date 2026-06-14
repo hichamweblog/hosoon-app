@@ -2,6 +2,8 @@
 
 import { MILESTONES, THUMUNS_PER_JUZ, TOTAL_THUMUNS } from "@/lib/constants";
 import { useHifzStore } from "@/store/useHifzStore";
+import ActivityHeatmap from "./ActivityHeatmap";
+import JourneyRoadmap from "./JourneyRoadmap";
 import { motion } from "framer-motion";
 import {
   CalendarDays,
@@ -12,14 +14,7 @@ import {
   Trophy,
 } from "lucide-react";
 import { useMemo } from "react";
-import {
-  Area,
-  AreaChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+
 import { toast } from "sonner";
 
 const container = {
@@ -37,7 +32,7 @@ const item = {
 };
 
 export default function StatsDashboard() {
-  const { streak, bestStreak, dailyLog, completedTasks } = useHifzStore();
+  const { streak, bestStreak, dailyLog, completedTasks, editedThumuns, currentDay, totalXp } = useHifzStore();
 
   const highestCompletedDay = useMemo(() => {
     const days = Object.keys(completedTasks)
@@ -53,23 +48,6 @@ export default function StatsDashboard() {
   const progressPercentage = (totalCompleted / TOTAL_THUMUNS) * 100;
   const juzCount = Math.floor(totalCompleted / THUMUNS_PER_JUZ);
 
-  // Generate chart data for the last 30 days
-  const chartData = Array.from({ length: 30 }).map((_, i) => {
-    const dayOffset = 29 - i;
-    const date = new Date();
-    date.setDate(date.getDate() - dayOffset);
-    const dateStr = date.toISOString().split("T")[0];
-    const log = dailyLog[dateStr];
-
-    return {
-      name: date.toLocaleDateString("ar-EG", {
-        day: "numeric",
-        month: "short",
-      }),
-      tasks: log ? log.tasksCompleted : 0,
-    };
-  });
-
   const nextMilestone =
     MILESTONES.find((m) => totalCompleted < m.threshold) ||
     MILESTONES[MILESTONES.length - 1];
@@ -82,6 +60,20 @@ export default function StatsDashboard() {
     });
   };
 
+  const perfectDaysCount = Object.values(dailyLog || {}).filter(log => log.completedAll).length;
+  const editedCount = Object.keys(editedThumuns || {}).length;
+
+  const specialAchievements = [
+    { id: "streak_7", label: "شعلة لا تنطفئ", description: "الاستمرار لـ 7 أيام متتالية", icon: "🔥", isEarned: bestStreak >= 7 },
+    { id: "streak_30", label: "أسد الحصون", description: "الاستمرار لـ 30 يوماً بلا انقطاع", icon: "🦁", isEarned: bestStreak >= 30 },
+    { id: "streak_100", label: "المعسكر المغلق", description: "الاستمرار لـ 100 يوم متتالية", icon: "🏕️", isEarned: bestStreak >= 100 },
+    { id: "perfect_10", label: "درع الالتزام", description: "إتمام 10 أيام مثالية", icon: "🛡️", isEarned: perfectDaysCount >= 10 },
+    { id: "perfect_50", label: "حصن متين", description: "تحقيق 50 يوماً مثالياً", icon: "🏰", isEarned: perfectDaysCount >= 50 },
+    { id: "xp_1000", label: "جامع الغنائم", description: "جمع 1,000 نقطة خبرة", icon: "💰", isEarned: totalXp >= 1000 },
+    { id: "xp_10000", label: "صاحب الألفيات", description: "جمع 10,000 نقطة خبرة", icon: "💎", isEarned: totalXp >= 10000 },
+    { id: "baqarah_imran", label: "حارس الزهراوين", description: "إتمام سورتي البقرة وآل عمران", icon: "🌸", isEarned: totalCompleted >= 70 },
+  ];
+
   return (
     <motion.div
       variants={container}
@@ -90,7 +82,7 @@ export default function StatsDashboard() {
       className="space-y-6"
       dir="rtl">
       {/* Top Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <motion.div
           variants={item}
           className="glass-card-premium rounded-3xl p-5 border border-border/50">
@@ -114,6 +106,19 @@ export default function StatsDashboard() {
           <div className="flex items-baseline gap-2">
             <h3 className="text-3xl font-bold">{totalCompleted}</h3>
             <span className="text-sm text-muted-foreground">/ 480</span>
+          </div>
+        </motion.div>
+
+        <motion.div
+          variants={item}
+          className="glass-card-premium rounded-3xl p-5 border border-amber-500/30 bg-amber-500/5 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mb-3">
+            <span className="text-xl font-bold font-mono">XP</span>
+          </div>
+          <p className="text-sm text-muted-foreground mb-1">نقاط الخبرة</p>
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-3xl font-bold text-amber-500 drop-shadow-sm">{totalXp || 0}</h3>
           </div>
         </motion.div>
 
@@ -148,92 +153,13 @@ export default function StatsDashboard() {
         </motion.div>
       </div>
 
-      {/* Main Charts Area */}
+      {/* Main Stats Area */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Activity Chart */}
+        {/* Activity Heatmap replaces old 30-day chart */}
         <motion.div
           variants={item}
-          className="lg:col-span-2 min-w-0 glass-panel rounded-3xl p-6 border border-border/50">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-lg font-bold">نشاط آخر 30 يوماً</h3>
-              <p className="text-sm text-muted-foreground">
-                مهام الحصون المنجزة يومياً
-              </p>
-            </div>
-            <button
-              onClick={copyStats}
-              className="p-2 rounded-xl bg-background/50 hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
-              <Share2 className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="h-62.5 w-full min-w-0">
-            <ResponsiveContainer
-              width="100%"
-              height="100%"
-              minWidth={0}
-              minHeight={250}>
-              <AreaChart
-                data={chartData}
-                margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorTasks" x1="0" y1="0" x2="0" y2="1">
-                    <stop
-                      offset="5%"
-                      stopColor="var(--color-primary)"
-                      stopOpacity={0.3}
-                    />
-                    <stop
-                      offset="95%"
-                      stopColor="var(--color-primary)"
-                      stopOpacity={0}
-                    />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  dataKey="name"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }}
-                  dy={10}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "var(--color-card)",
-                    borderRadius: "12px",
-                    border: "1px solid var(--color-border)",
-                    boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
-                  }}
-                  itemStyle={{ color: "var(--color-foreground)" }}
-                  labelStyle={{
-                    color: "var(--color-muted-foreground)",
-                    marginBottom: "4px",
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="tasks"
-                  name="المهام المنجزة"
-                  stroke="var(--color-primary)"
-                  strokeWidth={3}
-                  fillOpacity={1}
-                  fill="url(#colorTasks)"
-                  activeDot={{
-                    r: 6,
-                    fill: "var(--color-primary)",
-                    stroke: "var(--color-background)",
-                    strokeWidth: 2,
-                  }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          className="lg:col-span-2 min-w-0">
+          <ActivityHeatmap />
         </motion.div>
 
         {/* Next Target */}
@@ -262,6 +188,12 @@ export default function StatsDashboard() {
               متبقي {nextMilestone.threshold - totalCompleted} أثمان
             </p>
           </div>
+        </motion.div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6">
+        <motion.div variants={item}>
+          <JourneyRoadmap totalCompleted={totalCompleted} />
         </motion.div>
       </div>
 
@@ -294,6 +226,37 @@ export default function StatsDashboard() {
               </div>
             );
           })}
+        </div>
+      </motion.div>
+
+      {/* Special Achievements */}
+      <motion.div variants={item}>
+        <h3 className="text-lg font-bold mb-4 px-2">إنجازات خاصة</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {specialAchievements.map((achievement) => (
+            <div
+              key={achievement.id}
+              className={`relative p-5 rounded-2xl border flex items-center gap-4 transition-all ${
+                achievement.isEarned
+                  ? "bg-card border-border/50 shadow-sm"
+                  : "bg-background/50 border-transparent opacity-60 grayscale"
+              }`}>
+              <div className="text-4xl flex-shrink-0 relative">
+                {achievement.icon}
+                {achievement.isEarned && (
+                  <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-0.5">
+                    <CheckCircle2 className="w-4 h-4 text-success" />
+                  </div>
+                )}
+              </div>
+              <div>
+                <h4 className="font-bold text-sm mb-1">{achievement.label}</h4>
+                <p className="text-xs text-muted-foreground">
+                  {achievement.description}
+                </p>
+              </div>
+            </div>
+          ))}
         </div>
       </motion.div>
     </motion.div>

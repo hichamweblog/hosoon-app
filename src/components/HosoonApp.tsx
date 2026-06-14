@@ -4,11 +4,13 @@ import Onboarding from "@/components/Onboarding";
 import ReviewSessionView from "@/components/ReviewSessionView";
 import ScheduleView from "@/components/ScheduleView";
 import SessionView from "@/components/SessionView";
+import PrepSessionView from "@/components/PrepSessionView";
 import StatsDashboard from "@/components/StatsDashboard";
 import ThemeToggle from "@/components/ThemeToggle";
 import HomeTab from "@/components/tabs/HomeTab";
 import PrepTab from "@/components/tabs/PrepTab";
 import ReviewTab from "@/components/tabs/ReviewTab";
+import FloatingXpOverlay from "@/components/FloatingXpOverlay";
 import SettingsModal from "@/components/SettingsModal";
 import { Button } from "@/components/ui/button";
 import { THUMUNS_PER_JUZ, TOTAL_THUMUNS } from "@/lib/constants";
@@ -29,6 +31,7 @@ export default function HosoonApp() {
   const {
     showOnboarding, resetProgress, toggleTask, currentDay,
     streak, bestStreak, completedTasks, farReviewPointer,
+    editedThumuns,
   } = useHifzStore();
 
   const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
@@ -43,8 +46,8 @@ export default function HosoonApp() {
   }, []);
 
   const tasks = useMemo(
-    () => getFortressTasks(currentDay, farReviewPointer || 1),
-    [currentDay, farReviewPointer],
+    () => getFortressTasks(currentDay, farReviewPointer || 1, editedThumuns),
+    [currentDay, farReviewPointer, editedThumuns],
   );
   const dayTasks = completedTasks[currentDay] || {};
   const completedCount = tasks.taskKeys.filter((k) => dayTasks[k]).length;
@@ -67,6 +70,40 @@ export default function HosoonApp() {
     if (h < 17) return "مساء الخير";
     return "مساء السكينة";
   }, []);
+
+  const rankInfo = useMemo(() => {
+    const ranks = [
+      { max: 10, label: "محب للقرآن 🌱" },
+      { max: 40, label: "صاحب الهمة 🚀" },
+      { max: 100, label: "طالب علم 📚" },
+      { max: 240, label: "حامل الأجزاء 🛡️" },
+      { max: 400, label: "مشروع حافظ 🌟" },
+      { max: 480, label: "حافظ متقن 👑" }
+    ];
+    if (highestDay >= 480) return { label: ranks[5].label, progress: 100, nextMax: 480 };
+
+    let currentIdx = 0;
+    for (let i = 0; i < ranks.length; i++) {
+      if (highestDay < ranks[i].max) {
+        currentIdx = i;
+        break;
+      }
+    }
+    
+    const current = ranks[currentIdx];
+    const prevMax = currentIdx > 0 ? ranks[currentIdx - 1].max : 0;
+    const progress = Math.min(100, Math.max(0, Math.round(((highestDay - prevMax) / (current.max - prevMax)) * 100)));
+    
+    return { label: current.label, progress };
+  }, [highestDay]);
+
+  const streakColor = useMemo(() => {
+    if (streak < 3) return "text-orange-400/70";
+    if (streak < 7) return "text-orange-400";
+    if (streak < 15) return "text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.5)]";
+    if (streak < 30) return "text-purple-500 drop-shadow-[0_0_8px_rgba(168,85,247,0.5)]";
+    return "text-rose-500 drop-shadow-[0_0_8px_rgba(244,63,94,0.6)] animate-pulse";
+  }, [streak]);
 
   // Progress ring
   const R = 38, SW = 5, C = 2 * Math.PI * R;
@@ -140,9 +177,17 @@ export default function HosoonApp() {
         <section className="surface-card p-5 sm:p-6">
           <div className="flex items-start justify-between mb-5">
             <div className="space-y-1">
-              <p className="text-primary text-sm font-semibold">{greeting}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-primary text-sm font-semibold">{greeting}</p>
+                <div className="relative group overflow-hidden bg-primary/10 rounded-full">
+                  <div className="absolute top-0 bottom-0 right-0 bg-primary/20 transition-all duration-1000 ease-out" style={{ width: `${rankInfo.progress}%` }} />
+                  <span className="text-[10px] text-primary px-2 py-0.5 font-bold relative z-10 flex items-center gap-1">
+                    {rankInfo.label}
+                  </span>
+                </div>
+              </div>
               <h1 className="text-foreground">
-                <span className="text-3xl sm:text-4xl font-extrabold">اليوم {currentDay}</span>
+                <span className="text-3xl sm:text-4xl font-extrabold">الثمن {currentDay}</span>
                 <span className="text-base font-medium text-muted-foreground mr-2">من الرحلة</span>
               </h1>
               <p className="text-sm text-muted-foreground">
@@ -150,7 +195,7 @@ export default function HosoonApp() {
               </p>
             </div>
             <div className="flex flex-col items-center gap-1">
-              <p className="text-xs text-muted-foreground">مهام اليوم</p>
+              <p className="text-xs text-muted-foreground">المهام</p>
               <div className="relative w-20 h-20">
                 <svg width="80" height="80" className="-rotate-90">
                   <circle cx="40" cy="40" r={R} strokeWidth={SW} className="stroke-border" fill="none" />
@@ -170,7 +215,7 @@ export default function HosoonApp() {
           {/* Stats Row */}
           <div className="grid grid-cols-4 gap-2">
             {[
-              { icon: Flame, label: "السلسلة", value: `${streak} أيام`, color: "text-orange-400" },
+              { icon: Flame, label: "السلسلة", value: `${streak} أيام`, color: streakColor },
               { icon: Trophy, label: "أفضل سلسلة", value: `${bestStreak} أيام`, color: "text-amber-400" },
               { icon: BookOpenCheck, label: "المنجز", value: `${highestDay} ثمن`, color: "text-primary" },
               { icon: CalendarDays, label: "الأجزاء", value: `${juzCount} جزء`, color: "text-sky-400" },
@@ -231,7 +276,18 @@ export default function HosoonApp() {
             onComplete={() => { toggleTask(currentDay, "review_near"); setActiveSession(null); }}
             onClose={() => setActiveSession(null)} />
         )}
+        {activeSession?.type === "prep" && (
+          <PrepSessionView key="s_prep" 
+            thumuns={activeSession.target.thumuns as any[]}
+            onComplete={() => { 
+              // For now we just close the modal.
+              setActiveSession(null); 
+            }}
+            onClose={() => setActiveSession(null)} />
+        )}
       </AnimatePresence>
+
+      <FloatingXpOverlay />
     </main>
   );
 }

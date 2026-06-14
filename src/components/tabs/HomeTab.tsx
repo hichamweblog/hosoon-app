@@ -9,8 +9,9 @@ import { motion } from "framer-motion";
 import { CheckCircle2, Sparkles } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { vibrateLight, vibrateSuccess } from "@/lib/haptic";
+import { vibrateLight, vibrateSuccess, playDing } from "@/lib/haptic";
 import ThumunCard from "./ThumunCard";
+import { useXpStore } from "@/store/useXpStore";
 
 interface Props {
   tasks: FortressTasks;
@@ -19,7 +20,8 @@ interface Props {
 }
 
 export default function HomeTab({ tasks, dayTasks, currentDay }: Props) {
-  const { toggleTask, advanceDay, recordDailyCompletion } = useHifzStore();
+  const { toggleTask, advanceDay, recordDailyCompletion, addXp } = useHifzStore();
+  const { addEvent } = useXpStore();
   const celebratedRef = useRef(false);
   const quote = MOTIVATIONAL_QUOTES[currentDay % MOTIVATIONAL_QUOTES.length];
 
@@ -28,7 +30,7 @@ export default function HomeTab({ tasks, dayTasks, currentDay }: Props) {
   useEffect(() => {
     if (isAllDone && !celebratedRef.current) {
       celebratedRef.current = true;
-      toast.success("تم إنجاز جميع مهام اليوم!", { description: "تقبل الله منك." });
+      toast.success("تم إنجاز مهام هذا الثمن!", { description: "تقبل الله منك." });
       setTimeout(() => confetti({ particleCount: 120, spread: 90, origin: { y: 0.6 }, colors: ["#4F9D7E", "#D4A85B", "#FFF"] }), 300);
     }
     if (!isAllDone) celebratedRef.current = false;
@@ -37,9 +39,16 @@ export default function HomeTab({ tasks, dayTasks, currentDay }: Props) {
   const handleAdvance = () => {
     vibrateSuccess();
     recordDailyCompletion(currentDay, true, tasks.taskKeys.length);
+    confetti({
+      particleCount: 150,
+      spread: 70,
+      origin: { y: 0.6 },
+      colors: ['#4f9d7e', '#fbbf24', '#3b82f6', '#f43f5e'],
+      zIndex: 9999
+    });
     advanceDay();
     celebratedRef.current = false;
-    toast("تم الانتقال لليوم التالي", { icon: "🌅" });
+    toast("تم الانتقال للثمن التالي", { icon: "✨" });
   };
 
   const handleOpenSession = () => {
@@ -64,9 +73,17 @@ export default function HomeTab({ tasks, dayTasks, currentDay }: Props) {
           className="surface-card p-5 relative">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <button onClick={() => { vibrateLight(); toggleTask(currentDay, "new_hifz"); }}
-                className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                  dayTasks.new_hifz ? "bg-primary border-primary" : "border-muted-foreground/30"
+              <button onClick={(e) => { 
+                  vibrateLight(); 
+                  if (!dayTasks.new_hifz) {
+                    playDing(); 
+                    addEvent(50, e.clientX, e.clientY);
+                    addXp(50);
+                  }
+                  toggleTask(currentDay, "new_hifz"); 
+                }}
+                className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-300 ${
+                  dayTasks.new_hifz ? "bg-primary border-primary scale-110 shadow-[0_0_12px_rgba(79,157,126,0.5)]" : "border-muted-foreground/30 hover:border-primary/50 hover:scale-105"
                 }`}>
                 {dayTasks.new_hifz && <CheckCircle2 className="w-4 h-4 text-primary-foreground" />}
               </button>
@@ -91,7 +108,7 @@ export default function HomeTab({ tasks, dayTasks, currentDay }: Props) {
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="pt-4">
           <button onClick={handleAdvance}
             className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-bold text-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-transform">
-            إنهاء يومك والانتقال للغد
+            إتمام الثمن والانتقال للتالي
             <CheckCircle2 className="w-5 h-5" />
           </button>
         </motion.div>

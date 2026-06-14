@@ -3,9 +3,10 @@
 import type { FortressTasks } from "@/lib/fortress-calculator";
 import type { DailyTasks } from "@/store/useHifzStore";
 import { useHifzStore } from "@/store/useHifzStore";
-import { vibrateLight } from "@/lib/haptic";
+import { vibrateLight, playDing } from "@/lib/haptic";
 import { motion } from "framer-motion";
 import { BookOpen, CheckCircle2, History } from "lucide-react";
+import { useXpStore } from "@/store/useXpStore";
 
 interface Props {
   tasks: FortressTasks;
@@ -14,7 +15,8 @@ interface Props {
 }
 
 export default function ReviewTab({ tasks, dayTasks, currentDay }: Props) {
-  const { toggleTask } = useHifzStore();
+  const { toggleTask, addXp } = useHifzStore();
+  const { addEvent } = useXpStore();
 
   const handleOpenReviewSession = () => {
     if (!dayTasks.review_near && tasks.reviewNear.length > 0) {
@@ -31,7 +33,13 @@ export default function ReviewTab({ tasks, dayTasks, currentDay }: Props) {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
         className="surface-card p-5">
         <div className="flex items-center justify-between mb-5">
-          <CheckBtn checked={dayTasks.review_near} onToggle={() => toggleTask(currentDay, "review_near")} />
+          <CheckBtn checked={dayTasks.review_near} onToggle={(e) => {
+            if (!dayTasks.review_near) {
+              addEvent(20, e.clientX, e.clientY);
+              addXp(20);
+            }
+            toggleTask(currentDay, "review_near");
+          }} />
           <div className="flex items-center gap-2">
             <h3 className="font-bold text-lg">مراجعة القريب</h3>
             <History className="w-5 h-5 text-emerald-400" />
@@ -60,7 +68,7 @@ export default function ReviewTab({ tasks, dayTasks, currentDay }: Props) {
             )}
           </div>
         ) : (
-          <p className="text-center text-muted-foreground py-6">تبدأ من اليوم الثاني للحفظ</p>
+          <p className="text-center text-muted-foreground py-6">تبدأ من الثمن الثاني للحفظ</p>
         )}
       </motion.div>
 
@@ -68,7 +76,13 @@ export default function ReviewTab({ tasks, dayTasks, currentDay }: Props) {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
         className="surface-card p-5">
         <div className="flex items-center justify-between mb-5">
-          <CheckBtn checked={dayTasks.review_far} onToggle={() => toggleTask(currentDay, "review_far")} />
+          <CheckBtn checked={dayTasks.review_far} onToggle={(e) => {
+            if (!dayTasks.review_far) {
+              addEvent(20, e.clientX, e.clientY);
+              addXp(20);
+            }
+            toggleTask(currentDay, "review_far");
+          }} />
           <div className="flex items-center gap-2">
             <h3 className="font-bold text-lg">مراجعة البعيد</h3>
             <BookOpen className="w-5 h-5 text-indigo-400" />
@@ -97,7 +111,7 @@ export default function ReviewTab({ tasks, dayTasks, currentDay }: Props) {
             )}
           </div>
         ) : (
-          <p className="text-center text-muted-foreground py-6">تبدأ من اليوم التاسع للحفظ</p>
+          <p className="text-center text-muted-foreground py-6">تبدأ من الثمن التاسع للحفظ</p>
         )}
       </motion.div>
     </div>
@@ -124,15 +138,16 @@ function ReviewBoundary({
 }
 
 /* ═══ Checkbox helper ═══ */
-function CheckBtn({ checked, onToggle }: { checked?: boolean; onToggle: () => void }) {
-  const handleToggle = () => {
+function CheckBtn({ checked, onToggle }: { checked?: boolean; onToggle: (e: React.MouseEvent) => void }) {
+  const handleToggle = (e: React.MouseEvent) => {
     vibrateLight();
-    onToggle();
+    if (!checked) playDing();
+    onToggle(e);
   };
   return (
     <button onClick={handleToggle}
-      className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-        checked ? "bg-primary border-primary" : "border-muted-foreground/30"
+      className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-300 ${
+        checked ? "bg-primary border-primary scale-110 shadow-[0_0_12px_rgba(79,157,126,0.5)]" : "border-muted-foreground/30 hover:border-primary/50 hover:scale-105"
       }`}>
       {checked && <CheckCircle2 className="w-4 h-4 text-primary-foreground" />}
     </button>

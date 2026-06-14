@@ -28,7 +28,7 @@ interface JuzMilestone {
 }
 
 export default function ScheduleView() {
-  const { currentDay, completedTasks, farReviewPointer } = useHifzStore();
+  const { completedTasks, currentDay, farReviewPointer, toggleDayCompletion, editedThumuns } = useHifzStore();
   const [previewDay, setPreviewDay] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -36,11 +36,11 @@ export default function ScheduleView() {
   const maxDays = useMemo(() => {
     let last = currentDay;
     for (let i = 1; i <= TOTAL_THUMUNS * 1.5; i++) {
-      const tasks = getFortressTasks(i, 1);
+      const tasks = getFortressTasks(i, 1, editedThumuns);
       if (tasks.newHifz) last = i;
     }
     return Math.max(last, currentDay + 30);
-  }, [currentDay]);
+  }, [currentDay, editedThumuns]);
 
   const { weeklyDays, juzMilestones, currentJuz } = useMemo(() => {
     const weekly: DayData[] = [];
@@ -50,7 +50,7 @@ export default function ScheduleView() {
     // Build the weekly window (Current day - 1 up to + 5)
     const startWeek = Math.max(1, currentDay - 1);
     for (let d = startWeek; d <= startWeek + 6; d++) {
-      const tasks = getFortressTasks(d, farReviewPointer || 1);
+      const tasks = getFortressTasks(d, farReviewPointer || 1, editedThumuns);
       weekly.push({
         day: d,
         isCompleted: completedTasks[d] !== undefined,
@@ -141,7 +141,7 @@ export default function ScheduleView() {
             >
               <div className="flex justify-between items-center mb-2">
                 <span className={`text-sm font-bold ${d.isToday ? "text-primary" : "text-muted-foreground"}`}>
-                  اليوم {d.day}
+                  الثمن {d.day}
                 </span>
                 {d.isCompleted && <CheckCircle2 className="w-5 h-5 text-primary" />}
               </div>
@@ -212,7 +212,7 @@ function JuzCard({ milestone, isCurrent, onDayClick }: { milestone: JuzMilestone
           <div className="text-right">
             <h3 className="font-bold text-lg">الجزء {milestone.juz}</h3>
             <p className="text-xs text-muted-foreground">
-              {milestone.isCompleted ? "مكتمل بالكامل 🎉" : `${milestone.days.filter(d => d.isCompleted).length} من ${milestone.days.length} يوماً`}
+              {milestone.isCompleted ? "مكتمل بالكامل 🎉" : `${milestone.days.filter(d => d.isCompleted).length} من ${milestone.days.length} أثمان`}
             </p>
           </div>
         </div>

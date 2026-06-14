@@ -4,27 +4,17 @@ import { vibrateSuccess, vibrateLight } from "@/lib/haptic";
 import { Button } from "./ui/button";
 import { useState, useEffect } from "react";
 
-interface SessionViewProps {
-  surah: any;
-  juz?: any;
-  hizb?: any;
-  id?: any;
-  startAyah?: any;
-  endAyah?: any;
-  startText?: any;
+interface PrepSessionViewProps {
+  thumuns: any[];
   onComplete: () => void;
   onClose: () => void;
 }
 
-export default function SessionView({
-  surah,
-  juz,
-  hizb,
-  id,
-  startText,
+export default function PrepSessionView({
+  thumuns,
   onComplete,
   onClose,
-}: SessionViewProps) {
+}: PrepSessionViewProps) {
   const handleComplete = () => {
     vibrateSuccess();
     onComplete();
@@ -89,16 +79,26 @@ export default function SessionView({
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="w-6 h-6" />
           </Button>
-          <span className="font-semibold text-lg">جلسة الحفظ</span>
+          <span className="font-semibold text-lg">جلسة التحضير</span>
           <div className="w-10"></div>
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6 mb-8">
           <div className="w-full max-w-sm">
-            <h2 className="text-2xl font-bold mb-2">{String(surah)}</h2>
-            <p className="text-muted-foreground mb-6">
-              الجزء {String(juz ?? "")} · الحزب {String(hizb ?? "")} · الثمن {String(id ?? "")}
-            </p>
+            <h2 className="text-2xl font-bold mb-2">التحضير الأسبوعي</h2>
+            
+            {thumuns && thumuns.length > 0 && (
+              <div className="bg-background/30 rounded-xl p-4 border border-border/50 mb-6 text-sm">
+                <div className="flex justify-between items-center mb-2 pb-2 border-b border-border/50">
+                  <span className="text-muted-foreground">من:</span>
+                  <span className="font-bold">{thumuns[0].surah} (ثمن {thumuns[0].id})</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">إلى:</span>
+                  <span className="font-bold">{thumuns[thumuns.length - 1].surah} (ثمن {thumuns[thumuns.length - 1].id})</span>
+                </div>
+              </div>
+            )}
 
             <div className="bg-background/50 rounded-2xl p-6 border border-border mb-6">
               <div className="flex items-center justify-center gap-2 mb-4">
@@ -121,20 +121,18 @@ export default function SessionView({
                 </Button>
               </div>
             </div>
-            {!!startText && (
-              <p className="font-quran text-2xl leading-loose">
-                &quot;{String(startText)}...&quot;
-              </p>
-            )}
+            
+            <p className="text-muted-foreground text-sm">
+              قم بالاستماع أو التلاوة السريعة لهذه الأثمان لتهيئة العقل لحفظها لاحقاً.
+            </p>
           </div>
         </div>
 
-        <div className="p-4 pb-8">
+        <div className="p-4 pb-8 space-y-3">
           <Button
-            size="lg"
-            className="w-full text-lg font-bold h-14 rounded-xl"
+            className="w-full h-14 rounded-2xl bg-violet-500 hover:bg-violet-600 text-white font-bold text-lg"
             onClick={handleComplete}>
-            تم إنجاز الحفظ
+            إتمام التحضير
           </Button>
         </div>
       </motion.div>

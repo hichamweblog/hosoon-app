@@ -14,15 +14,14 @@ export const REVIEW_NEAR_THUMUNS = 8; // 1 hizb
 
 // Milestones
 export const MILESTONES = [
-  { id: 'first_thumun', label: 'أول ثمن', icon: '🌱', threshold: 1 },
-  { id: 'first_hizb', label: 'أول حزب', icon: '📖', threshold: 8 },
-  { id: 'first_juz', label: 'أول جزء', icon: '⭐', threshold: 16 },
-  { id: 'five_juz', label: '5 أجزاء', icon: '🏅', threshold: 80 },
-  { id: 'ten_juz', label: '10 أجزاء', icon: '🎖️', threshold: 160 },
-  { id: 'quarter', label: 'ربع القرآن', icon: '🌙', threshold: 120 },
-  { id: 'half', label: 'نصف القرآن', icon: '🌟', threshold: 240 },
-  { id: 'three_quarter', label: 'ثلاثة أرباع القرآن', icon: '💎', threshold: 360 },
-  { id: 'complete', label: 'ختم القرآن كاملاً', icon: '👑', threshold: 480 },
+  { id: 'juz_1', label: 'بداية الغيث (جزء 1)', icon: '🌱', threshold: 16 },
+  { id: 'juz_3', label: 'همة المستمر (3 أجزاء)', icon: '🌿', threshold: 48 },
+  { id: 'juz_5', label: 'تأسيس الحصن (5 أجزاء)', icon: '🛡️', threshold: 80 },
+  { id: 'juz_10', label: 'الثلث الأول (10 أجزاء)', icon: '🥉', threshold: 160 },
+  { id: 'juz_15', label: 'منتصف الدرب (15 جزء)', icon: '🥈', threshold: 240 },
+  { id: 'juz_20', label: 'الثلثان (20 جزء)', icon: '🥇', threshold: 320 },
+  { id: 'juz_25', label: 'قاب قوسين (25 جزء)', icon: '💎', threshold: 400 },
+  { id: 'complete', label: 'تاج الوقار (ختم القرآن كاملاً)', icon: '👑', threshold: 480 },
 ] as const;
 
 // Motivational quotes (authentic hadiths and verses)

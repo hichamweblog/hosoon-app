@@ -23,7 +23,7 @@ export default function SettingsModal({ onClose }: Props) {
   const handleExport = () => {
     vibrateLight();
     try {
-      const data = localStorage.getItem("hosoon-storage");
+      const data = localStorage.getItem("hifz-storage");
       if (!data) throw new Error("No data found");
       
       const blob = new Blob([data], { type: "application/json" });
@@ -55,7 +55,7 @@ export default function SettingsModal({ onClose }: Props) {
         // Validate JSON
         JSON.parse(content);
         
-        localStorage.setItem("hosoon-storage", content);
+        localStorage.setItem("hifz-storage", content);
         vibrateSuccess();
         toast.success("تم استيراد البيانات بنجاح، سيتم تحديث الصفحة");
         
@@ -90,38 +90,38 @@ export default function SettingsModal({ onClose }: Props) {
 
           <div className="space-y-3">
             {/* ─── Export ─── */}
-            <div className="bg-background rounded-2xl p-4 border border-border flex items-center justify-between">
+            <button onClick={handleExport} className="w-full text-right bg-background rounded-2xl p-4 border border-border flex items-center justify-between transition-colors hover:bg-muted/50 active:bg-muted">
               <div>
                 <p className="font-bold text-sm">تصدير البيانات</p>
                 <p className="text-xs text-muted-foreground mt-0.5">حفظ نسخة من إنجازاتك</p>
               </div>
-              <Button onClick={handleExport} variant="secondary" size="icon" className="rounded-xl shrink-0">
+              <div className="w-9 h-9 flex items-center justify-center bg-secondary rounded-xl shrink-0">
                 <Download className="w-4 h-4 text-primary" />
-              </Button>
-            </div>
+              </div>
+            </button>
 
             {/* ─── Import ─── */}
-            <div className="bg-background rounded-2xl p-4 border border-border flex items-center justify-between">
+            <button onClick={() => { vibrateLight(); fileInputRef.current?.click(); }} className="w-full text-right bg-background rounded-2xl p-4 border border-border flex items-center justify-between transition-colors hover:bg-muted/50 active:bg-muted">
               <div>
                 <p className="font-bold text-sm">استيراد البيانات</p>
                 <p className="text-xs text-muted-foreground mt-0.5">استرجاع نسخة محفوظة</p>
               </div>
-              <Button onClick={() => { vibrateLight(); fileInputRef.current?.click(); }} variant="secondary" size="icon" className="rounded-xl shrink-0">
+              <div className="w-9 h-9 flex items-center justify-center bg-secondary rounded-xl shrink-0">
                 <Upload className="w-4 h-4 text-primary" />
-              </Button>
-              <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleImport} />
-            </div>
+              </div>
+            </button>
+            <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleImport} />
 
             {/* ─── Reset ─── */}
-            <div className="bg-red-500/5 rounded-2xl p-4 border border-red-500/10 flex items-center justify-between mt-6">
+            <button onClick={() => { vibrateLight(); setShowResetAlert(true); }} className="w-full text-right bg-red-500/5 rounded-2xl p-4 border border-red-500/10 flex items-center justify-between mt-6 transition-colors hover:bg-red-500/10 active:bg-red-500/20">
               <div>
                 <p className="font-bold text-sm text-red-500">إعادة ضبط المصنع</p>
                 <p className="text-xs text-red-500/70 mt-0.5">مسح كل تقدمك والبدء من جديد</p>
               </div>
-              <Button onClick={() => { vibrateLight(); setShowResetAlert(true); }} variant="destructive" size="icon" className="rounded-xl shrink-0 bg-red-500/20 hover:bg-red-500/30 text-red-500">
+              <div className="w-9 h-9 flex items-center justify-center bg-red-500/20 text-red-500 rounded-xl shrink-0">
                 <RotateCcw className="w-4 h-4" />
-              </Button>
-            </div>
+              </div>
+            </button>
           </div>
         </div>
       </div>

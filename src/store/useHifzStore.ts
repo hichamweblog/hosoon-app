@@ -4,10 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export type TaskType =
-  | "khatma"
   | "prep_weekly"
-  | "prep_night"
-  | "prep_pre"
   | "new_hifz"
   | "review_near"
   | "review_far";
@@ -44,6 +41,13 @@ interface HifzState {
   // Onboarding
   showOnboarding: boolean;
 
+  // Custom Thumun overrides (Community Sourcing)
+  editedThumuns: Record<number, { startAyah?: number; endAyah?: number; startText?: string }>;
+
+  // XP System
+  totalXp: number;
+  addXp: (amount: number) => void;
+
   // Actions
   toggleTask: (day: number, task: TaskType) => void;
   advanceDay: () => void;
@@ -51,6 +55,8 @@ interface HifzState {
   resetProgress: () => void;
   setNote: (thumunId: number, note: string) => void;
   completeOnboarding: () => void;
+  toggleDayCompletion: (day: number) => void;
+  editThumun: (id: number, data: { startAyah?: number; endAyah?: number; startText?: string }) => void;
   recordDailyCompletion: (
     day: number,
     completedAll: boolean,
@@ -94,8 +100,20 @@ export const useHifzStore = create<HifzState>()(
       lastActiveDate: "",
       dailyLog: {},
       notes: {},
+      editedThumuns: {},
       showOnboarding: true,
       farReviewPointer: 1,
+      totalXp: 0,
+
+      addXp: (amount) => set((state) => ({ totalXp: (state.totalXp || 0) + amount })),
+
+      editThumun: (id, data) =>
+        set((state) => ({
+          editedThumuns: {
+            ...state.editedThumuns,
+            [id]: { ...(state.editedThumuns[id] || {}), ...data },
+          },
+        })),
 
       toggleTask: (day, task) =>
         set((state) => ({
@@ -107,6 +125,28 @@ export const useHifzStore = create<HifzState>()(
             },
           },
         })),
+
+      toggleDayCompletion: (day) =>
+        set((state) => {
+          const isCompleted = state.completedTasks[day] !== undefined;
+          if (isCompleted) {
+            const newTasks = { ...state.completedTasks };
+            delete newTasks[day];
+            return { completedTasks: newTasks };
+          } else {
+            return {
+              completedTasks: {
+                ...state.completedTasks,
+                [day]: {
+                  prep_weekly: true,
+                  new_hifz: true,
+                  review_near: true,
+                  review_far: true,
+                },
+              },
+            };
+          }
+        }),
 
       advanceDay: () =>
         set((state) => {
@@ -151,9 +191,12 @@ export const useHifzStore = create<HifzState>()(
           completedTasks: {},
           startDate: new Date().toISOString(),
           streak: 0,
+          bestStreak: 0,
+          lastActiveDate: "",
           dailyLog: {},
           notes: {},
           farReviewPointer: 1,
+          showOnboarding: true,
         })),
 
       setNote: (thumunId, note) =>

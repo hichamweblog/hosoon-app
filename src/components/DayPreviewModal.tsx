@@ -1,8 +1,13 @@
 "use client";
 
 import { getFortressTasks } from "@/lib/fortress-calculator";
-import { X, BookOpen, History, Sparkles } from "lucide-react";
+import { useHifzStore } from "@/store/useHifzStore";
+import { vibrateLight, playDing } from "@/lib/haptic";
+import { X, BookOpen, History, Sparkles, CheckCircle2, RotateCcw, Edit2 } from "lucide-react";
+import { useXpStore } from "@/store/useXpStore";
 import { Button } from "./ui/button";
+import { useState } from "react";
+import ThumunEditorModal from "./ThumunEditorModal";
 
 interface Props {
   day: number;
@@ -11,7 +16,11 @@ interface Props {
 }
 
 export default function DayPreviewModal({ day, farReviewPointer, onClose }: Props) {
-  const tasks = getFortressTasks(day, farReviewPointer);
+  const { completedTasks, toggleDayCompletion, editedThumuns, addXp } = useHifzStore();
+  const { addEvent } = useXpStore();
+  const tasks = getFortressTasks(day, farReviewPointer, editedThumuns);
+  const isCompleted = completedTasks[day] !== undefined && Object.values(completedTasks[day]).some(Boolean);
+  const [editingThumun, setEditingThumun] = useState<any>(null);
 
   return (
     <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95" dir="rtl">
@@ -21,7 +30,7 @@ export default function DayPreviewModal({ day, farReviewPointer, onClose }: Prop
             <span className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm">
               {day}
             </span>
-            خطة اليوم
+            خطة الثمن
           </h2>
           <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full">
             <X className="w-5 h-5 text-muted-foreground" />
@@ -35,15 +44,22 @@ export default function DayPreviewModal({ day, farReviewPointer, onClose }: Prop
               <Sparkles className="w-4 h-4" /> الحفظ الجديد
             </h3>
             <div className="bg-background rounded-xl p-4 border border-border/50">
-              <p className="font-bold">{tasks.newHifz.surah}</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                الجزء {tasks.newHifz.juz} · الحزب {tasks.newHifz.hizb} · الثمن {tasks.newHifz.id}
-              </p>
-              {tasks.newHifz.startText && (
-                <p className="font-quran text-foreground/80 leading-loose mt-2">
-                  &quot;{tasks.newHifz.startText}&quot;
-                </p>
-              )}
+              <div className="flex justify-between items-center pb-2 border-b border-border/50">
+                <span className="text-muted-foreground">الثمن {tasks.newHifz.id}</span>
+                <button 
+                  onClick={() => setEditingThumun(tasks.newHifz)}
+                  className="p-1 hover:bg-black/5 rounded-full transition-colors"
+                >
+                  <Edit2 className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
+              </div>
+              <div className="pt-2 text-center text-lg font-amiri font-bold leading-loose">
+                {tasks.newHifz.startText}...
+              </div>
+              <div className="flex justify-between items-center pt-2 text-xs text-muted-foreground border-t border-border/50 mt-2">
+                <span>{tasks.newHifz.surah}</span>
+                <span>الآيات {tasks.newHifz.startAyah} - {tasks.newHifz.endAyah}</span>
+              </div>
             </div>
           </div>
         ) : (
@@ -52,7 +68,7 @@ export default function DayPreviewModal({ day, farReviewPointer, onClose }: Prop
               <Sparkles className="w-4 h-4" /> الحفظ الجديد
             </h3>
             <div className="bg-background rounded-xl p-4 border border-border/50 text-center text-muted-foreground">
-              يوم مراجعة فقط
+              محطة مراجعة فقط
             </div>
           </div>
         )}
@@ -103,10 +119,37 @@ export default function DayPreviewModal({ day, farReviewPointer, onClose }: Prop
           </div>
         </div>
 
-        <Button className="w-full h-12 rounded-xl text-md font-bold" onClick={onClose}>
-          إغلاق
-        </Button>
+        <div className="flex gap-3">
+          <Button 
+            className={`flex-1 h-12 rounded-xl text-md font-bold transition-all ${
+               isCompleted 
+                 ? "bg-red-500/10 text-red-500 hover:bg-red-500/20"
+                 : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_15px_rgba(79,157,126,0.3)]"
+            }`}
+            onClick={(e) => {
+              vibrateLight();
+              if (!isCompleted) {
+                playDing();
+                addEvent(100, e.clientX, e.clientY);
+                addXp(100);
+              }
+              toggleDayCompletion(day);
+            }}
+          >
+            {isCompleted ? <><RotateCcw className="w-5 h-5 ml-2" /> التراجع عن الإنجاز</> : <><CheckCircle2 className="w-5 h-5 ml-2" /> تحديد كمكتمل</>}
+          </Button>
+          <Button variant="outline" className="flex-1 h-12 rounded-xl text-md font-bold" onClick={onClose}>
+            إغلاق
+          </Button>
+        </div>
       </div>
+
+      {editingThumun && (
+        <ThumunEditorModal 
+          thumun={editingThumun} 
+          onClose={() => setEditingThumun(null)} 
+        />
+      )}
     </div>
   );
 }

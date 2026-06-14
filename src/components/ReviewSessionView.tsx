@@ -1,7 +1,8 @@
-import { X } from "lucide-react";
+import { X, Play, Pause, RotateCcw, Minus, Plus } from "lucide-react";
 import { motion } from "framer-motion";
-import { vibrateSuccess } from "@/lib/haptic";
+import { vibrateSuccess, vibrateLight } from "@/lib/haptic";
 import { Button } from "./ui/button";
+import { useState, useEffect } from "react";
 
 interface ReviewSessionViewProps {
   surah: any;
@@ -27,6 +28,48 @@ export default function ReviewSessionView({
   const handleComplete = () => {
     vibrateSuccess();
     onComplete();
+  };
+
+  const [initialTime, setInitialTime] = useState(25 * 60);
+  const [timeLeft, setTimeLeft] = useState(25 * 60);
+  const [isActive, setIsActive] = useState(false);
+
+  const changeTime = (minutes: number) => {
+    if (isActive) return;
+    const newTime = Math.max(5 * 60, initialTime + minutes * 60);
+    setInitialTime(newTime);
+    setTimeLeft(newTime);
+    vibrateLight();
+  };
+
+  useEffect(() => {
+    let interval: any = null;
+    if (isActive && timeLeft > 0) {
+      interval = setInterval(() => {
+        setTimeLeft((time) => time - 1);
+      }, 1000);
+    } else if (timeLeft === 0) {
+      clearInterval(interval);
+      vibrateSuccess();
+    }
+    return () => clearInterval(interval);
+  }, [isActive, timeLeft]);
+
+  const toggleTimer = () => {
+    vibrateLight();
+    setIsActive(!isActive);
+  };
+
+  const resetTimer = () => {
+    vibrateLight();
+    setIsActive(false);
+    setTimeLeft(initialTime);
+  };
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -56,6 +99,28 @@ export default function ReviewSessionView({
             <p className="text-muted-foreground mb-6">
               الجزء {String(juz ?? "")} · الحزب {String(hizb ?? "")} · الثمن {String(id ?? "")}
             </p>
+
+            <div className="bg-background/50 rounded-2xl p-6 border border-border mb-6">
+              <div className="flex items-center justify-center gap-2 mb-4">
+                <Button variant="ghost" size="icon" className="text-muted-foreground" onClick={() => changeTime(-5)} disabled={isActive || initialTime <= 300}>
+                  <Minus className="w-5 h-5" />
+                </Button>
+                <div className="text-5xl font-mono font-bold tracking-widest text-primary w-40 text-center">
+                  {formatTime(timeLeft)}
+                </div>
+                <Button variant="ghost" size="icon" className="text-muted-foreground" onClick={() => changeTime(5)} disabled={isActive}>
+                  <Plus className="w-5 h-5" />
+                </Button>
+              </div>
+              <div className="flex items-center justify-center gap-4">
+                <Button variant={isActive ? "outline" : "default"} size="icon" className="w-12 h-12 rounded-full" onClick={toggleTimer}>
+                  {isActive ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-1" />}
+                </Button>
+                <Button variant="ghost" size="icon" className="w-12 h-12 rounded-full" onClick={resetTimer}>
+                  <RotateCcw className="w-5 h-5" />
+                </Button>
+              </div>
+            </div>
             {!!startText && (
               <p className="font-quran text-2xl leading-loose">
                 &quot;{String(startText)}...&quot;
