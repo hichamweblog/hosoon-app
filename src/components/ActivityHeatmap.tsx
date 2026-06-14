@@ -101,10 +101,12 @@ export default function ActivityHeatmap() {
         </div>
       </div>
 
-      <div className="w-full overflow-x-auto pb-2 custom-scrollbar" dir="rtl">
-        <div className="flex gap-1.5 min-w-max">
+      <div
+        className="w-full max-h-48 overflow-y-auto overflow-x-hidden p-1 custom-scrollbar"
+        dir="rtl">
+        <div className="flex flex-col gap-1.5 h-max">
           {heatmapWeeks.map((week, weekIndex) => (
-            <div key={weekIndex} className="flex flex-col gap-1.5">
+            <div key={weekIndex} className="flex gap-1.5 justify-end">
               {week.map((dayData) => {
                 if (!dayData) return null;
 
