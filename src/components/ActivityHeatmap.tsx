@@ -78,7 +78,7 @@ export default function ActivityHeatmap() {
       (today.getMonth() - startDate.getMonth()) +
       1;
 
-    // Reverse days so newest is first for RTL layout wrapping
+    // Reverse so the newest day is first (at the top), older days at the bottom
     days.reverse();
 
     return { heatmapDays: days, totalMonthsSpan: monthsSpan };
@@ -96,10 +96,10 @@ export default function ActivityHeatmap() {
       </div>
 
       <div
-        className="w-full max-h-48 overflow-y-auto overflow-x-hidden p-1 custom-scrollbar"
-        dir="ltr">
+        className="w-full max-h-48 overflow-y-auto overflow-x-hidden p-3 mb-2 custom-scrollbar"
+        dir="rtl">
         <div
-          className="grid grid-cols-[repeat(auto-fit,minmax(1.25rem,1fr))] gap-1.5 h-max w-full"
+          className="grid grid-cols-[repeat(auto-fit,minmax(1.25rem,1fr))] gap-2 h-max w-full"
           dir="rtl">
           {heatmapDays.map((dayData) => {
             if (!dayData) return null;
