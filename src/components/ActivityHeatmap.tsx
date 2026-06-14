@@ -10,7 +10,7 @@ import {
 export default function ActivityHeatmap() {
   const { dailyLog } = useHifzStore();
 
-  const { heatmapWeeks, totalMonthsSpan } = useMemo(() => {
+  const { heatmapDays, totalMonthsSpan } = useMemo(() => {
     const today = new Date();
 
     // Find oldest logged date
@@ -72,26 +72,20 @@ export default function ActivityHeatmap() {
       });
     }
 
-    // Chunk into weeks
-    const weeks = [];
-    for (let i = 0; i < days.length; i += 7) {
-      weeks.push(days.slice(i, i + 7));
-    }
-
-    // Reverse weeks so the newest week is first (for RTL layout)
-    weeks.reverse();
-
     // Calculate months span for the title
     const monthsSpan =
       (today.getFullYear() - startDate.getFullYear()) * 12 +
       (today.getMonth() - startDate.getMonth()) +
       1;
 
-    return { heatmapWeeks: weeks, totalMonthsSpan: monthsSpan };
+    // Reverse days so newest is first for RTL layout wrapping
+    days.reverse();
+
+    return { heatmapDays: days, totalMonthsSpan: monthsSpan };
   }, [dailyLog]);
 
   return (
-    <div className="glass-panel rounded-3xl p-6 border border-border/50 overflow-hidden flex flex-col items-center">
+    <div className="glass-panel w-full rounded-3xl p-6 border border-border/50 overflow-hidden flex flex-col items-center">
       <div className="w-full flex items-center justify-between mb-4">
         <div>
           <h3 className="text-lg font-bold">جدار الالتزام</h3>
@@ -103,38 +97,36 @@ export default function ActivityHeatmap() {
 
       <div
         className="w-full max-h-48 overflow-y-auto overflow-x-hidden p-1 custom-scrollbar"
-        dir="rtl">
-        <div className="flex flex-col gap-1.5 h-max">
-          {heatmapWeeks.map((week, weekIndex) => (
-            <div key={weekIndex} className="flex gap-1.5 justify-end">
-              {week.map((dayData) => {
-                if (!dayData) return null;
+        dir="ltr">
+        <div
+          className="grid grid-cols-[repeat(auto-fit,minmax(1.25rem,1fr))] gap-1.5 h-max w-full"
+          dir="rtl">
+          {heatmapDays.map((dayData) => {
+            if (!dayData) return null;
 
-                return (
-                  <TooltipProvider key={dayData.dateStr} delay={100}>
-                    <Tooltip>
-                      <TooltipTrigger
-                        className={`block w-4 h-4 rounded-[4px] cursor-pointer transition-transform hover:scale-125 ${dayData.colorClass}`}
-                      />
-                      <TooltipContent
-                        className="bg-popover text-popover-foreground border-border text-xs"
-                        side="top">
-                        <p className="font-bold mb-1" dir="rtl">
-                          {dayData.date.toLocaleDateString("ar-DZ", {
-                            weekday: "long",
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                          })}
-                        </p>
-                        <p dir="rtl">مهام منجزة: {dayData.tasksCompleted}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                );
-              })}
-            </div>
-          ))}
+            return (
+              <TooltipProvider key={dayData.dateStr} delay={100}>
+                <Tooltip>
+                  <TooltipTrigger
+                    className={`block w-full aspect-square rounded-[4px] cursor-pointer transition-transform hover:scale-110 ${dayData.colorClass}`}
+                  />
+                  <TooltipContent
+                    className="bg-popover text-popover-foreground border-border text-xs"
+                    side="top">
+                    <p className="font-bold mb-1" dir="rtl">
+                      {dayData.date.toLocaleDateString("ar-DZ", {
+                        weekday: "long",
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}
+                    </p>
+                    <p dir="rtl">مهام منجزة: {dayData.tasksCompleted}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            );
+          })}
         </div>
       </div>
 
