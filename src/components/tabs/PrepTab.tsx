@@ -69,13 +69,6 @@ export default function PrepTab({ tasks, dayTasks, currentDay }: Props) {
                 >
                   بدء جلسة
                 </button>
-                <CheckBtn checked={dayTasks.prep_weekly} onToggle={(e) => {
-                  if (!dayTasks.prep_weekly) {
-                    addEvent(10, e.clientX, e.clientY);
-                    addXp(10);
-                  }
-                  toggleTask(currentDay, "prep_weekly");
-                }} small />
               </div>
             </div>
 

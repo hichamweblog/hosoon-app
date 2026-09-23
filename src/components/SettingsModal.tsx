@@ -1,7 +1,8 @@
 "use client";
 
 import { useHifzStore } from "@/store/useHifzStore";
-import { Download, RotateCcw, Upload, X } from "lucide-react";
+import { Download, RotateCcw, Upload, X, Cloud } from "lucide-react";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
@@ -89,6 +90,28 @@ export default function SettingsModal({ onClose }: Props) {
           </div>
 
           <div className="space-y-3">
+            {/* ─── Cloud Sync (Supabase) ─── */}
+            <div className="w-full text-right bg-background rounded-2xl p-4 border border-border flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-sm">المزامنة السحابية</p>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                    isSupabaseConfigured ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"
+                  }`}>
+                    {isSupabaseConfigured ? "متصل سحابياً" : "محلي (آمن)"}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {isSupabaseConfigured
+                    ? "التقدم متزامن سحابياً مع Supabase"
+                    : "البيانات محفوظة محلياً؛ يمكن تفعيل Supabase في أي وقت"}
+                </p>
+              </div>
+              <div className="w-9 h-9 flex items-center justify-center bg-secondary rounded-xl shrink-0">
+                <Cloud className="w-4 h-4 text-primary" />
+              </div>
+            </div>
+
             {/* ─── Export ─── */}
             <button onClick={handleExport} className="w-full text-right bg-background rounded-2xl p-4 border border-border flex items-center justify-between transition-colors hover:bg-muted/50 active:bg-muted">
               <div>

@@ -31,7 +31,7 @@ export default function HosoonApp() {
   const {
     showOnboarding, resetProgress, toggleTask, currentDay,
     streak, bestStreak, completedTasks, farReviewPointer,
-    editedThumuns,
+    editedThumuns, addXp,
   } = useHifzStore();
 
   const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
@@ -186,9 +186,9 @@ export default function HosoonApp() {
                   </span>
                 </div>
               </div>
-              <h1 className="text-foreground">
+              <h1 className="text-foreground flex items-baseline gap-2">
                 <span className="text-3xl sm:text-4xl font-extrabold">الثمن {currentDay}</span>
-                <span className="text-base font-medium text-muted-foreground mr-2">من الرحلة</span>
+                <span className="text-base font-medium text-muted-foreground">من الرحلة</span>
               </h1>
               <p className="text-sm text-muted-foreground">
                 {overallPct}% المنجز كلياً · {highestDay} ثمن مكتمل
@@ -280,7 +280,10 @@ export default function HosoonApp() {
           <PrepSessionView key="s_prep" 
             thumuns={activeSession.target.thumuns as any[]}
             onComplete={() => { 
-              // For now we just close the modal.
+              if (!dayTasks.prep_weekly) {
+                toggleTask(currentDay, "prep_weekly");
+                addXp(10);
+              }
               setActiveSession(null); 
             }}
             onClose={() => setActiveSession(null)} />

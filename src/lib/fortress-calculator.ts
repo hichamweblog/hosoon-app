@@ -84,13 +84,12 @@ export const getFortressTasks = (day: number, farReviewPointer: number = 1, edit
     }
   }
 
-  // Count total tasks for this day
-  const taskKeys: string[] = [
-    "prep_weekly",
-    "new_hifz",
-    "review_near",
-    "review_far"
-  ];
+  // Count total tasks for this day dynamically
+  const taskKeys: string[] = [];
+  if (prepWeekly.length > 0) taskKeys.push("prep_weekly");
+  if (newHifz) taskKeys.push("new_hifz");
+  if (reviewNear.length > 0) taskKeys.push("review_near");
+  if (reviewFar !== null) taskKeys.push("review_far");
 
   return {
     prepWeekly,

@@ -5,7 +5,7 @@ import { useHifzStore } from '@/store/useHifzStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, Shield, Star, ArrowLeft, Sparkles } from 'lucide-react';
+import { BookOpen, Shield, Star, ArrowRight, Sparkles } from 'lucide-react';
 
 const steps = [
   {
@@ -87,7 +87,7 @@ export default function Onboarding() {
                   onClick={() => setStep(step - 1)}
                   className="gap-2"
                 >
-                  <ArrowLeft className="w-4 h-4" />
+                  <ArrowRight className="w-4 h-4" />
                   السابق
                 </Button>
               )}

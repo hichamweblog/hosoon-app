@@ -2,7 +2,7 @@
 // Service Worker for PWA offline support
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry } from "@serwist/precaching";
-import { Serwist } from "@serwist/precaching";
+import { Serwist } from "serwist";
 
 declare const self: any;
 

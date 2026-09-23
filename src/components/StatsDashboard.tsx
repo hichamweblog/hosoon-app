@@ -85,11 +85,13 @@ export default function StatsDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <motion.div
           variants={item}
-          className="glass-card-premium rounded-3xl p-5 border border-border/50">
-          <div className="w-10 h-10 rounded-2xl bg-accent/10 text-accent flex items-center justify-center mb-3">
-            <Trophy className="w-5 h-5" />
+          className="glass-card-premium rounded-3xl p-5 border border-border/50 flex flex-col justify-between">
+          <div>
+            <div className="w-10 h-10 rounded-2xl bg-accent/10 text-accent flex items-center justify-center mb-3">
+              <Trophy className="w-5 h-5" />
+            </div>
+            <p className="text-sm text-muted-foreground mb-1">الأجزاء المحفوظة</p>
           </div>
-          <p className="text-sm text-muted-foreground mb-1">الأجزاء المحفوظة</p>
           <div className="flex items-baseline gap-2">
             <h3 className="text-3xl font-bold">{juzCount}</h3>
             <span className="text-sm text-muted-foreground">/ 30</span>
@@ -98,11 +100,13 @@ export default function StatsDashboard() {
 
         <motion.div
           variants={item}
-          className="glass-card-premium rounded-3xl p-5 border border-border/50">
-          <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3">
-            <Target className="w-5 h-5" />
+          className="glass-card-premium rounded-3xl p-5 border border-border/50 flex flex-col justify-between">
+          <div>
+            <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3">
+              <Target className="w-5 h-5" />
+            </div>
+            <p className="text-sm text-muted-foreground mb-1">الأثمان (التقدم)</p>
           </div>
-          <p className="text-sm text-muted-foreground mb-1">الأثمان (التقدم)</p>
           <div className="flex items-baseline gap-2">
             <h3 className="text-3xl font-bold">{totalCompleted}</h3>
             <span className="text-sm text-muted-foreground">/ 480</span>
@@ -111,12 +115,14 @@ export default function StatsDashboard() {
 
         <motion.div
           variants={item}
-          className="glass-card-premium rounded-3xl p-5 border border-amber-500/30 bg-amber-500/5 relative overflow-hidden">
+          className="glass-card-premium rounded-3xl p-5 border border-amber-500/30 bg-amber-500/5 relative overflow-hidden flex flex-col justify-between">
           <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
-          <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mb-3">
-            <span className="text-xl font-bold font-mono">XP</span>
+          <div>
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mb-3">
+              <span className="text-xl font-bold font-mono">XP</span>
+            </div>
+            <p className="text-sm text-muted-foreground mb-1">نقاط الخبرة</p>
           </div>
-          <p className="text-sm text-muted-foreground mb-1">نقاط الخبرة</p>
           <div className="flex items-baseline gap-2">
             <h3 className="text-3xl font-bold text-amber-500 drop-shadow-sm">{totalXp || 0}</h3>
           </div>
@@ -124,27 +130,33 @@ export default function StatsDashboard() {
 
         <motion.div
           variants={item}
-          className="glass-card-premium rounded-3xl p-5 border border-border/50">
-          <div className="w-10 h-10 rounded-2xl bg-orange-500/10 text-orange-500 flex items-center justify-center mb-3">
-            <Flame className="w-5 h-5" />
+          className="glass-card-premium rounded-3xl p-5 border border-border/50 flex flex-col justify-between">
+          <div>
+            <div className="w-10 h-10 rounded-2xl bg-orange-500/10 text-orange-500 flex items-center justify-center mb-3">
+              <Flame className="w-5 h-5" />
+            </div>
+            <p className="text-sm text-muted-foreground mb-1">السلسلة الحالية</p>
           </div>
-          <p className="text-sm text-muted-foreground mb-1">السلسلة الحالية</p>
-          <div className="flex items-baseline gap-2">
-            <h3 className="text-3xl font-bold text-orange-500">{streak}</h3>
-            <span className="text-sm text-muted-foreground">أيام</span>
+          <div>
+            <div className="flex items-baseline gap-2">
+              <h3 className="text-3xl font-bold text-orange-500">{streak}</h3>
+              <span className="text-sm text-muted-foreground">أيام</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              الأفضل: {bestStreak}
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            الأفضل: {bestStreak}
-          </p>
         </motion.div>
 
         <motion.div
           variants={item}
-          className="glass-card-premium rounded-3xl p-5 border border-border/50 relative overflow-hidden">
-          <div className="w-10 h-10 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center mb-3">
-            <CalendarDays className="w-5 h-5" />
+          className="glass-card-premium rounded-3xl p-5 border border-border/50 relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="w-10 h-10 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center mb-3">
+              <CalendarDays className="w-5 h-5" />
+            </div>
+            <p className="text-sm text-muted-foreground mb-1">نسبة الإنجاز</p>
           </div>
-          <p className="text-sm text-muted-foreground mb-1">نسبة الإنجاز</p>
           <h3 className="text-3xl font-bold text-gradient-primary">
             {progressPercentage.toFixed(1)}%
           </h3>
