@@ -1,9 +1,9 @@
 "use client";
 
 import { useHifzStore } from "@/store/useHifzStore";
-import { Download, RotateCcw, Upload, X, Cloud } from "lucide-react";
-import { isSupabaseConfigured } from "@/lib/supabase";
-import { useRef, useState } from "react";
+import { Download, RotateCcw, Upload, X, Cloud, LogIn, LogOut, RefreshCw, CheckCircle2 } from "lucide-react";
+import { isSupabaseConfigured, getCurrentUser, signOutUser, syncProgressToCloud } from "@/lib/supabase";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
 import {
@@ -11,15 +11,49 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "./ui/alert-dialog";
 import { vibrateLight, vibrateSuccess } from "@/lib/haptic";
+import AuthModal from "./AuthModal";
 
 interface Props {
   onClose: () => void;
 }
 
 export default function SettingsModal({ onClose }: Props) {
-  const { resetProgress } = useHifzStore();
+  const {
+    resetProgress, currentDay, streak, bestStreak, totalXp,
+    completedTasks, dailyLog, notes, editedThumuns,
+  } = useHifzStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showResetAlert, setShowResetAlert] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  useEffect(() => {
+    getCurrentUser().then(setUser);
+  }, []);
+
+  const handleManualSync = async () => {
+    setSyncing(true);
+    vibrateLight();
+    const { error } = await syncProgressToCloud({
+      currentDay, streak, bestStreak, totalXp,
+      completedTasks, dailyLog, notes, editedThumuns,
+    });
+    setSyncing(false);
+    if (error) {
+      toast.error("فشل في المزامنة السحابية: " + (typeof error === 'string' ? error : error.message || ''));
+    } else {
+      vibrateSuccess();
+      toast.success("تمت مزامنة تقدمك سحابياً بنجاح!");
+    }
+  };
+
+  const handleSignOut = async () => {
+    vibrateLight();
+    await signOutUser();
+    setUser(null);
+    toast.info("تم تسجيل الخروج");
+  };
 
   const handleExport = () => {
     vibrateLight();
@@ -53,7 +87,6 @@ export default function SettingsModal({ onClose }: Props) {
     reader.onload = (event) => {
       try {
         const content = event.target?.result as string;
-        // Validate JSON
         JSON.parse(content);
         
         localStorage.setItem("hifz-storage", content);
@@ -91,25 +124,58 @@ export default function SettingsModal({ onClose }: Props) {
 
           <div className="space-y-3">
             {/* ─── Cloud Sync (Supabase) ─── */}
-            <div className="w-full text-right bg-background rounded-2xl p-4 border border-border flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="font-bold text-sm">المزامنة السحابية</p>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
-                    isSupabaseConfigured ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"
-                  }`}>
-                    {isSupabaseConfigured ? "متصل سحابياً" : "محلي (آمن)"}
-                  </span>
+            <div className="w-full text-right bg-background rounded-2xl p-4 border border-border space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-sm">المزامنة السحابية</p>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                      user ? "bg-emerald-500/10 text-emerald-500 flex items-center gap-1" : isSupabaseConfigured ? "bg-blue-500/10 text-blue-500" : "bg-muted text-muted-foreground"
+                    }`}>
+                      {user ? <><CheckCircle2 className="w-3 h-3" /> متزامن</> : isSupabaseConfigured ? "سحابي" : "محلي (آمن)"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {user
+                      ? user.email
+                      : isSupabaseConfigured
+                      ? "سجل دخولك لحفظ التقدم سحابياً"
+                      : "البيانات محفوظة على هذا الجهاز فقط"}
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {isSupabaseConfigured
-                    ? "التقدم متزامن سحابياً مع Supabase"
-                    : "البيانات محفوظة محلياً؛ يمكن تفعيل Supabase في أي وقت"}
-                </p>
+                <div className="w-9 h-9 flex items-center justify-center bg-secondary rounded-xl shrink-0">
+                  <Cloud className="w-4 h-4 text-primary" />
+                </div>
               </div>
-              <div className="w-9 h-9 flex items-center justify-center bg-secondary rounded-xl shrink-0">
-                <Cloud className="w-4 h-4 text-primary" />
-              </div>
+
+              {/* Action buttons for Cloud Sync */}
+              {user ? (
+                <div className="flex items-center gap-2 pt-1 border-t border-border/40">
+                  <button
+                    onClick={handleManualSync}
+                    disabled={syncing}
+                    className="flex-1 py-2 px-3 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
+                    مزامنة الآن
+                  </button>
+                  <button
+                    onClick={handleSignOut}
+                    className="py-2 px-3 rounded-xl bg-muted hover:bg-muted/80 text-muted-foreground text-xs font-semibold flex items-center gap-1 transition-colors"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    خروج
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { vibrateLight(); setShowAuthModal(true); }}
+                  className="w-full py-2.5 px-3 rounded-xl bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-primary/90 transition-colors shadow-sm"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  تسجيل الدخول / إنشاء حساب للمزامنة
+                </button>
+              )}
             </div>
 
             {/* ─── Export ─── */}
@@ -165,6 +231,14 @@ export default function SettingsModal({ onClose }: Props) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Auth Modal */}
+      {showAuthModal && (
+        <AuthModal
+          onClose={() => setShowAuthModal(false)}
+          onSuccess={() => getCurrentUser().then(setUser)}
+        />
+      )}
     </>
   );
 }

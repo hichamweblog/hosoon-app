@@ -57,6 +57,16 @@ interface HifzState {
   completeOnboarding: () => void;
   toggleDayCompletion: (day: number) => void;
   editThumun: (id: number, data: { startAyah?: number; endAyah?: number; startText?: string }) => void;
+  hydrateFromCloud: (data: {
+    currentDay?: number;
+    streak?: number;
+    bestStreak?: number;
+    totalXp?: number;
+    completedTasks?: Record<number, DailyTasks>;
+    dailyLog?: Record<string, DailyLogEntry>;
+    notes?: Record<number, string>;
+    editedThumuns?: Record<number, any>;
+  }) => void;
   recordDailyCompletion: (
     day: number,
     completedAll: boolean,
@@ -212,6 +222,20 @@ export const useHifzStore = create<HifzState>()(
           showOnboarding: false,
           startDate: new Date().toISOString(),
           lastActiveDate: getToday(),
+        })),
+
+      hydrateFromCloud: (data) =>
+        set((state) => ({
+          ...state,
+          currentDay: data.currentDay ?? state.currentDay,
+          streak: data.streak ?? state.streak,
+          bestStreak: data.bestStreak ?? state.bestStreak,
+          totalXp: data.totalXp ?? state.totalXp,
+          completedTasks: data.completedTasks ?? state.completedTasks,
+          dailyLog: data.dailyLog ?? state.dailyLog,
+          notes: data.notes ?? state.notes,
+          editedThumuns: data.editedThumuns ?? state.editedThumuns,
+          showOnboarding: false,
         })),
 
       recordDailyCompletion: (day, completedAll, tasksCompleted) =>

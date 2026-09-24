@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, User } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -21,6 +21,41 @@ export interface CloudUserProgress {
   edited_thumuns: Record<string, any>;
   updated_at: string;
 }
+
+// ─── Authentication Helpers ───
+
+export async function signInWithEmailPassword(email: string, password: string) {
+  if (!supabase) return { data: null, error: { message: "Supabase غير مهيأ" } };
+  return await supabase.auth.signInWithPassword({ email, password });
+}
+
+export async function signUpWithEmailPassword(email: string, password: string) {
+  if (!supabase) return { data: null, error: { message: "Supabase غير مهيأ" } };
+  return await supabase.auth.signUp({ email, password });
+}
+
+export async function signInWithMagicLink(email: string) {
+  if (!supabase) return { data: null, error: { message: "Supabase غير مهيأ" } };
+  return await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+    },
+  });
+}
+
+export async function signOutUser() {
+  if (!supabase) return { error: null };
+  return await supabase.auth.signOut();
+}
+
+export async function getCurrentUser(): Promise<User | null> {
+  if (!supabase) return null;
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+}
+
+// ─── Cloud Progress Sync Helpers ───
 
 /**
  * Sync user progress to Supabase
