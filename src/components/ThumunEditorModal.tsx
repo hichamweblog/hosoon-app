@@ -15,7 +15,8 @@ interface Props {
 }
 
 export default function ThumunEditorModal({ thumun, onClose }: Props) {
-  const { editThumun, settings } = useHifzStore();
+  const editThumun = useHifzStore((s) => s.editThumun);
+  const settings = useHifzStore((s) => s.settings);
   const surahs = getAllSurahs();
   const [startSura, setStartSura] = useState(String(thumun.startSura));
   const [startAya, setStartAya] = useState(String(thumun.startAya));

@@ -6,7 +6,8 @@ import { useHifzStore } from "@/store/useHifzStore";
 import { AnimatePresence, motion } from "framer-motion";
 
 export default function FloatingXpOverlay() {
-  const { events, removeEvent } = useXpStore();
+  const events = useXpStore((s) => s.events);
+  const removeEvent = useXpStore((s) => s.removeEvent);
   const arabic = useHifzStore((s) => s.settings.arabicNumerals);
 
   return (

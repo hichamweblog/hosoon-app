@@ -14,11 +14,9 @@ export default function KhatmaCelebration() {
   const khatmaCompletedAt = useHifzStore((s) => s.khatmaCompletedAt);
   const startMaintainMode = useHifzStore((s) => s.startMaintainMode);
   const resetProgress = useHifzStore((s) => s.resetProgress);
-  const { totalXp, bestStreak, arabic } = useHifzStore((s) => ({
-    totalXp: s.totalXp,
-    bestStreak: s.bestStreak,
-    arabic: s.settings.arabicNumerals,
-  }));
+  const totalXp = useHifzStore((s) => s.totalXp);
+  const bestStreak = useHifzStore((s) => s.bestStreak);
+  const arabic = useHifzStore((s) => s.settings.arabicNumerals);
   const [dismissed, setDismissed] = useState<string | null>(null);
   const celebrated = useRef(false);
 

@@ -27,16 +27,14 @@ interface Props {
 }
 
 export default function DayPreviewModal({ day, onClose }: Props) {
-  const {
-    completedTasks,
-    toggleDayCompletion,
-    editedThumuns,
-    notes,
-    setNote,
-    currentDay,
-    thumunRatings,
-    settings,
-  } = useHifzStore();
+  const completedTasks = useHifzStore((s) => s.completedTasks);
+  const toggleDayCompletion = useHifzStore((s) => s.toggleDayCompletion);
+  const editedThumuns = useHifzStore((s) => s.editedThumuns);
+  const notes = useHifzStore((s) => s.notes);
+  const setNote = useHifzStore((s) => s.setNote);
+  const currentDay = useHifzStore((s) => s.currentDay);
+  const thumunRatings = useHifzStore((s) => s.thumunRatings);
+  const settings = useHifzStore((s) => s.settings);
   const addEvent = useXpStore((s) => s.addEvent);
   const openSession = useSessionStore((s) => s.open);
   const tasks = getFortressTasks(day, {

@@ -43,8 +43,14 @@ const MILESTONE_ICONS = { sprout: Flower, mountain: Mountain, shield: Shield, me
 const ACHIEVEMENT_ICONS = { flame: Flame, shield: Shield, castle: Castle, hammer: Hammer, coins: Coins, sparkles: Sparkles, flower: Flower, clock: Clock };
 
 export default function StatsDashboard() {
-  const { streak, bestStreak, dailyLog, completedTasks, totalXp, sessionLog, thumunRatings, maintain } =
-    useHifzStore();
+  const streak = useHifzStore((s) => s.streak);
+  const bestStreak = useHifzStore((s) => s.bestStreak);
+  const dailyLog = useHifzStore((s) => s.dailyLog);
+  const completedTasks = useHifzStore((s) => s.completedTasks);
+  const totalXp = useHifzStore((s) => s.totalXp);
+  const sessionLog = useHifzStore((s) => s.sessionLog);
+  const thumunRatings = useHifzStore((s) => s.thumunRatings);
+  const maintain = useHifzStore((s) => s.maintain);
   const arabic = useHifzStore((s) => s.settings.arabicNumerals);
 
   const highestDay = useMemo(() => {

@@ -50,8 +50,13 @@ export default function SessionOverlay() {
 function SessionInner() {
   const payload = useSessionStore((s) => s.payload)!;
   const close = useSessionStore((s) => s.close);
-  const { toggleTask, logSession, setThumunRating, completedTasks, settings, updateSettings, notes } =
-    useHifzStore();
+  const toggleTask = useHifzStore((s) => s.toggleTask);
+  const logSession = useHifzStore((s) => s.logSession);
+  const setThumunRating = useHifzStore((s) => s.setThumunRating);
+  const completedTasks = useHifzStore((s) => s.completedTasks);
+  const settings = useHifzStore((s) => s.settings);
+  const updateSettings = useHifzStore((s) => s.updateSettings);
+  const notes = useHifzStore((s) => s.notes);
   const addEvent = useXpStore((s) => s.addEvent);
   const timer = useSessionTimer(25);
   const [confirmClose, setConfirmClose] = useState(false);

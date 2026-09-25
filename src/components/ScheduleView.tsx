@@ -43,7 +43,10 @@ function dayInfo(day: number, edited: EditedThumuns): DayData {
 }
 
 export default function ScheduleView() {
-  const { completedTasks, currentDay, editedThumuns, maintain } = useHifzStore();
+  const completedTasks = useHifzStore((s) => s.completedTasks);
+  const currentDay = useHifzStore((s) => s.currentDay);
+  const editedThumuns = useHifzStore((s) => s.editedThumuns);
+  const maintain = useHifzStore((s) => s.maintain);
   const arabic = useHifzStore((s) => s.settings.arabicNumerals);
   const [previewDay, setPreviewDay] = useState<number | null>(null);
   const [query, setQuery] = useState("");
