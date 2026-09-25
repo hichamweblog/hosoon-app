@@ -1,144 +1,144 @@
+"use client";
+
+import { formatNum, localDateKey } from "@/lib/format";
 import { useHifzStore } from "@/store/useHifzStore";
 import { useMemo } from "react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "./ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 
+const MONTHS = [
+  "جانفي", "فيفري", "مارس", "أفريل", "ماي", "جوان",
+  "جويلية", "أوت", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر",
+];
+
+interface Cell {
+  date: Date;
+  key: string;
+  tasks: number;
+  colorClass: string;
+  label: string;
+}
+
+/** GitHub-style commitment wall: week columns, RTL flow (oldest at right). */
 export default function ActivityHeatmap() {
-  const { dailyLog } = useHifzStore();
+  const dailyLog = useHifzStore((s) => s.dailyLog);
+  const arabic = useHifzStore((s) => s.settings.arabicNumerals);
 
-  const { heatmapDays, totalMonthsSpan } = useMemo(() => {
+  const { weeks, monthLabels } = useMemo(() => {
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    // Find oldest logged date
-    const loggedDates = Object.keys(dailyLog || {})
-      .filter(
-        (dateStr) => dailyLog[dateStr] && dailyLog[dateStr].tasksCompleted > 0,
-      )
-      .sort();
+    const logged = Object.keys(dailyLog || {}).sort();
+    const oldestLogged = logged.length > 0 ? new Date(`${logged[0]}T00:00:00`) : today;
 
-    const oldestLoggedDate =
-      loggedDates.length > 0 ? new Date(loggedDates[0]) : today;
-    const startOfCurrentMonth = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      1,
-    );
-    const startOfOldestMonth = new Date(
-      oldestLoggedDate.getFullYear(),
-      oldestLoggedDate.getMonth(),
-      1,
-    );
+    // at least 18 weeks of history
+    const earliest = new Date(today);
+    earliest.setDate(today.getDate() - 125);
+    const start = oldestLogged < earliest ? oldestLogged : earliest;
 
-    const startDate =
-      startOfOldestMonth < startOfCurrentMonth
-        ? startOfOldestMonth
-        : startOfCurrentMonth;
+    // align to Saturday (start of week)
+    const aligned = new Date(start);
+    aligned.setDate(start.getDate() - ((start.getDay() + 1) % 7));
 
-    // Calculate total days to generate
-    const diffTime = today.getTime() - startDate.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    // Ensure we generate a multiple of 7 to form complete columns
-    // Minimum 18 weeks (126 days) so the grid looks full and beautiful even for new users
-    const totalDaysToGenerate = Math.max(
-      Math.ceil((diffDays + 1) / 7) * 7,
-      126,
-    );
-
-    const days = [];
-    for (let i = totalDaysToGenerate - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(today.getDate() - i);
-      const dateStr = d.toISOString().split("T")[0];
-      const log = dailyLog[dateStr];
-      const tasksCompleted = log ? log.tasksCompleted : 0;
-
+    const cells: Cell[] = [];
+    const cursor = new Date(aligned);
+    while (cursor <= today) {
+      const key = localDateKey(cursor);
+      const log = dailyLog?.[key];
+      const tasks = log?.tasks ?? 0;
       let colorClass = "bg-muted/30";
-      if (tasksCompleted === 1) colorClass = "bg-emerald-500/30";
-      else if (tasksCompleted === 2) colorClass = "bg-emerald-500/50";
-      else if (tasksCompleted === 3) colorClass = "bg-emerald-500/80";
-      else if (tasksCompleted >= 4)
-        colorClass = "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]";
-
-      days.push({
-        date: d,
-        dateStr,
-        tasksCompleted,
+      if (tasks >= 1 && tasks <= 2) colorClass = "bg-f-near/30";
+      else if (tasks >= 3 && tasks <= 4) colorClass = "bg-f-near/50";
+      else if (tasks >= 5 && tasks <= 6) colorClass = "bg-f-near/80";
+      else if (tasks >= 7) colorClass = "bg-f-near shadow-[0_0_6px_rgba(62,146,109,0.45)]";
+      cells.push({
+        date: new Date(cursor),
+        key,
+        tasks,
         colorClass,
+        label: `${cursor.toLocaleDateString("ar", { weekday: "long" })} ${formatNum(cursor.getDate(), arabic)} ${MONTHS[cursor.getMonth()]} — ${tasks} مهمة`,
+      });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    // pad to full weeks
+    while (cells.length % 7 !== 0) {
+      const d = new Date(cells[cells.length - 1].date);
+      d.setDate(d.getDate() + 1);
+      cells.push({
+        date: d,
+        key: localDateKey(d),
+        tasks: -1,
+        colorClass: "bg-transparent",
+        label: "",
       });
     }
 
-    // Calculate months span for the title
-    const monthsSpan =
-      (today.getFullYear() - startDate.getFullYear()) * 12 +
-      (today.getMonth() - startDate.getMonth()) +
-      1;
+    // chunk into week columns (Sat..Fri rows), oldest week first
+    const cols: Cell[][] = [];
+    for (let i = 0; i < cells.length; i += 7) cols.push(cells.slice(i, i + 7));
+    // months: label when a column's Saturday month differs from previous
+    const labels: (string | null)[] = cols.map((col, i) => {
+      const m = col[0].date.getMonth();
+      const prevM = i > 0 ? cols[i - 1][0].date.getMonth() : -1;
+      return m !== prevM ? MONTHS[m] : null;
+    });
 
-    // Reverse so the newest day is first (at the top), older days at the bottom
-    days.reverse();
-
-    return { heatmapDays: days, totalMonthsSpan: monthsSpan };
-  }, [dailyLog]);
+    return { weeks: cols, monthLabels: labels };
+  }, [dailyLog, arabic]);
 
   return (
-    <div className="glass-panel w-full rounded-3xl p-6 border border-border/50 overflow-hidden flex flex-col items-center">
-      <div className="w-full flex items-center justify-between mb-4">
+    <div className="glass-panel w-full rounded-3xl p-6 border border-border/50 overflow-hidden">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-lg font-bold">جدار الالتزام</h3>
           <p className="text-sm text-muted-foreground mt-1">
-            تتبع نشاطك اليومي في الحفظ والمراجعة
+            نشاطك اليومي في الحفظ والمراجعة
           </p>
         </div>
       </div>
 
-      <div
-        className="w-full max-h-48 overflow-y-auto overflow-x-hidden p-3 mb-2 custom-scrollbar"
-        dir="rtl">
-        <div
-          className="grid grid-cols-[repeat(auto-fit,minmax(1.25rem,1fr))] gap-2 h-max w-full"
-          dir="rtl">
-          {heatmapDays.map((dayData) => {
-            if (!dayData) return null;
-
-            return (
-              <TooltipProvider key={dayData.dateStr} delay={100}>
-                <Tooltip>
-                  <TooltipTrigger
-                    className={`block w-full aspect-square rounded-[4px] cursor-pointer transition-transform hover:scale-110 ${dayData.colorClass}`}
-                  />
-                  <TooltipContent
-                    className="bg-popover text-popover-foreground border-border text-xs"
-                    side="top">
-                    <p className="font-bold mb-1" dir="rtl">
-                      {dayData.date.toLocaleDateString("ar-DZ", {
-                        weekday: "long",
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
-                    </p>
-                    <p dir="rtl">مهام منجزة: {dayData.tasksCompleted}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            );
-          })}
+      <TooltipProvider delay={100}>
+        <div className="overflow-x-auto custom-scrollbar pb-2" dir="rtl">
+          {/* month labels */}
+          <div className="flex gap-[3px] mb-1 min-w-max">
+            {weeks.map((col, i) => (
+              <div key={`m-${col[0].key}`} className="w-3.5 text-[8px] text-muted-foreground overflow-visible whitespace-nowrap">
+                {monthLabels[i] ?? ""}
+              </div>
+            ))}
+          </div>
+          {/* week columns */}
+          <div className="flex gap-[3px] min-w-max">
+            {weeks.map((col) => (
+              <div key={col[0].key} className="flex flex-col gap-[3px]">
+                {col.map((cell) =>
+                  cell.tasks < 0 ? (
+                    <div key={cell.key} className="w-3.5 h-3.5" />
+                  ) : (
+                    <Tooltip key={cell.key}>
+                      <TooltipTrigger
+                        aria-label={cell.label}
+                        className={`block w-3.5 h-3.5 rounded-[3px] cursor-pointer transition-transform hover:scale-125 ${cell.colorClass}`}
+                      />
+                      <TooltipContent side="top" className="text-xs">
+                        <p dir="rtl">{cell.label}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ),
+                )}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      </TooltipProvider>
 
-      <div
-        className="w-full flex justify-end items-center gap-2 mt-4 text-xs text-muted-foreground"
-        dir="rtl">
+      <div className="flex justify-end items-center gap-1.5 mt-4 text-xs text-muted-foreground" dir="rtl">
         <span>أقل</span>
-        <div className="w-3 h-3 rounded-[3px] bg-muted/30" />
-        <div className="w-3 h-3 rounded-[3px] bg-emerald-500/30" />
-        <div className="w-3 h-3 rounded-[3px] bg-emerald-500/50" />
-        <div className="w-3 h-3 rounded-[3px] bg-emerald-500/80" />
-        <div className="w-3 h-3 rounded-[3px] bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]" />
+        <div className="w-3 h-3 rounded-[3px] bg-muted/30" aria-hidden />
+        <div className="w-3 h-3 rounded-[3px] bg-f-near/30" aria-hidden />
+        <div className="w-3 h-3 rounded-[3px] bg-f-near/50" aria-hidden />
+        <div className="w-3 h-3 rounded-[3px] bg-f-near/80" aria-hidden />
+        <div className="w-3 h-3 rounded-[3px] bg-f-near" aria-hidden />
         <span>أكثر</span>
       </div>
     </div>

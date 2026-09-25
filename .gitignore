@@ -45,3 +45,6 @@ next-env.d.ts
 public/sw.js*
 public/swe-worker*
 .playwright-mcp/
+
+# external upstream datasets (fetch separately — see data/upstream/SOURCES.md)
+data/upstream/*.json

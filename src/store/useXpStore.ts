@@ -1,6 +1,6 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
-interface XpEvent {
+export interface XpEvent {
   id: number;
   amount: number;
   x: number;
@@ -15,10 +15,10 @@ interface XpStore {
 
 export const useXpStore = create<XpStore>((set) => ({
   events: [],
-  addEvent: (amount, x, y) => set((state) => ({ 
-    events: [...state.events, { id: Date.now() + Math.random(), amount, x, y }] 
-  })),
-  removeEvent: (id) => set((state) => ({ 
-    events: state.events.filter(e => e.id !== id) 
-  }))
+  addEvent: (amount, x, y) =>
+    set((state) => ({
+      events: [...state.events, { id: Date.now() + Math.random(), amount, x, y }],
+    })),
+  removeEvent: (id) =>
+    set((state) => ({ events: state.events.filter((e) => e.id !== id) })),
 }));

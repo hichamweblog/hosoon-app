@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -35,6 +34,14 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  /* Fortress identity (الحصون الخمسة) */
+  --color-f-khatma: var(--f-khatma);
+  --color-f-prep: var(--f-prep);
+  --color-f-new: var(--f-new);
+  --color-f-near: var(--f-near);
+  --color-f-far: var(--f-far);
+  --color-f-gold: var(--f-gold);
+
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
   --radius-lg: 1rem;
@@ -68,33 +75,47 @@
   --border: #e8e2d8;
   --input: #f1ece3;
   --ring: #3c8268;
+
+  --f-khatma: #0f7a74;
+  --f-prep: #3e7cb1;
+  --f-new: #b8893c;
+  --f-near: #3d8f6a;
+  --f-far: #5b5fa8;
+  --f-gold: #b8893c;
 }
 
 .dark {
-  --background: #0B1121;
-  --foreground: #F8FAFC;
-  --card: #111827;
-  --card-foreground: #F8FAFC;
-  --popover: #111827;
-  --popover-foreground: #F8FAFC;
-  --primary: #3B82F6;
-  --primary-foreground: #FFFFFF;
-  --primary-strong: #2563EB;
-  --secondary: #64748B;
-  --secondary-foreground: #F8FAFC;
-  --accent: #8B5CF6;
-  --accent-foreground: #FFFFFF;
-  --success: #10B981;
-  --success-foreground: #FFFFFF;
-  --destructive: #EF4444;
-  --destructive-foreground: #FFFFFF;
-  --muted: #1E293B;
-  --muted-foreground: #94A3B8;
-  --surface: #1E293B;
-  --surface-raised: #334155;
-  --border: #334155;
-  --input: #1E293B;
-  --ring: #3B82F6;
+  --background: #0c1512;
+  --foreground: #eaf2ec;
+  --card: #13201b;
+  --card-foreground: #eaf2ec;
+  --popover: #13201b;
+  --popover-foreground: #eaf2ec;
+  --primary: #4fa383;
+  --primary-foreground: #06120d;
+  --primary-strong: #6cbf9d;
+  --secondary: #8fa89b;
+  --secondary-foreground: #0c1512;
+  --accent: #d4a853;
+  --accent-foreground: #14100a;
+  --success: #4fa383;
+  --success-foreground: #06120d;
+  --destructive: #f26d6d;
+  --destructive-foreground: #1a0808;
+  --muted: #1a2a23;
+  --muted-foreground: #8fa89b;
+  --surface: #16241e;
+  --surface-raised: #1e3129;
+  --border: #24352c;
+  --input: #1a2a23;
+  --ring: #4fa383;
+
+  --f-khatma: #2ba8a0;
+  --f-prep: #5fa8e0;
+  --f-new: #d4a853;
+  --f-near: #4fbf8d;
+  --f-far: #818cf8;
+  --f-gold: #d4a853;
 }
 
 @layer base {
@@ -126,16 +147,15 @@
   }
 
   .text-gradient-primary {
-    background: linear-gradient(135deg, var(--primary), var(--accent));
+    background: linear-gradient(135deg, var(--f-gold), var(--primary));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
-  .verse-text {
+  .verse-text,
+  .font-quran {
     font-family: var(--font-quran), serif;
-    line-height: 2.2;
-    letter-spacing: 0;
   }
 
   .pb-safe {

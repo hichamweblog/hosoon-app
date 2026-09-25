@@ -3,12 +3,12 @@ import sharp from "sharp";
 
 const svg = `
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <rect width="512" height="512" fill="#0A0F1E"/>
+  <rect width="512" height="512" fill="#0C1512"/>
   <rect x="50" y="50" width="412" height="412" rx="100" fill="url(#grad)"/>
-  <text x="256" y="320" font-family="Arial, sans-serif" font-size="200" font-weight="bold" text-anchor="middle" fill="#0A0F1E">ح</text>
+  <text x="256" y="256" font-family="Arial, sans-serif" font-size="190" font-weight="bold" text-anchor="middle" dominant-baseline="central" fill="#0C1512">ح</text>
   <defs>
     <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#14B8A6"/>
+      <stop offset="0%" stop-color="#4FA383"/>
       <stop offset="100%" stop-color="#D4A853"/>
     </linearGradient>
   </defs>
