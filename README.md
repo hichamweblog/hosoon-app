@@ -1,36 +1,95 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# حُصون (Hosoon) — تنظيم حفظ القرآن الكريم
 
-## Getting Started
+تطبيق ويب تفاعلي (PWA) يساعدك على حفظ القرآن الكريم بطريقة **الحصون الخمسة**، وفق **التقسيم المعتمد في المصاحف المغاربية (رواية الإمام ورش عن الإمام نافع — بإشراف وزارة الأوقاف والشؤون الإسلامية المغربية)**: القرآن مقسّم إلى **480 ثُمناً** (60 حزباً × 8)، وخطة «مشروع حافظ» تجزّ الرحلة إلى 480 يوماً (8 ثمانين ختمة كاملة).
 
-First, run the development server:
+## المنهجية — الحصون الخمسة
+
+لكل يوم خمس حصون (المصطلح الأصلي: حصون الحفظ):
+
+| الحصن | المهمة | الطبيعة |
+| --- | --- | --- |
+| حصن التلاوة | تلاوة جزء يومياً | تعقّب (مراجعة) |
+| حصن الاستماع | استماع حزب يومياً | تعقّب |
+| حصن التحضير | تحضير مراجعة الأسبوع القادم | تعقّب (مدة الحياة) |
+| حصن الحفظ الجديد | حفظ ثمن جديد يومياً | إتقان (لا يتجاوزه الحافظ حتى يتقنه) |
+| حصنا المراجعة | مراجعة 8 أثمان من الأسبوع الماضي + تسميع النخبة من الأسبوع قبل الماضي | تعقّب |
+
+**المراجعة الدورية (النظام الصناعي — السرّ الأساسي):**
+
+- **المراجعة القريبة (الحصن السادس):** أثمان الأسبوع الماضي، بترتيب `8، 2، 4، 6، 1، 3، 5، 7` (النظام الحفيف: دمج مراجعات المهمتين ٤ و٥).
+- **المراجعة البعيدة:** بعد 8 أيام من الإتقان، ثم كل فترة تتدرّج: **16 يوماً** حتى الثمن 240، ثم **24** حتى 360، ثم **32** حتى الختمة. الحصر الحسابي مضبوط في `src/lib/fortress-calculator.ts`.
+- **الختمة الكاملة** (تُحتسب على 480 ثمناً): يُحتفى بها بقلعة الختمة الذهبية والانتقال إلى **وضع التثبيت** (حزب واحد يومياً موزعاً + مراجعة).
+
+## المصادر وحقوق الاستخدام
+
+**بيان مصدر تقسيم الأثمان (بيانات `src/lib/quran-thumuns.json`):**
+
+> إعداد: عبد الرحيم هشام — بناء على بيانات [ma-mushaf-muhammadi-data](https://github.com/ELAHMADI/ma-mushaf-muhammadi-data) © 2026 Noureddine El-Ahmadi، [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — المصاحف المغاربية، مصحف مطبعة الحروف الحسنية، مصحف.ma.
+
+- **المرجع المعتمد للأثمان:** مجموعة بيانات مصحف محمدية موثّقة من المصحف المطبوع (مطبعة الحروف الحسنية، وزارة الأوقاف المغربية) — كل واحد من 480 حدود الأثمان مطابق للمصحف المطبوع.
+- **النص القرآني والأصوات:** مُجمَّعة من مصادر مفتوحة (أنظر `data/upstream/SOURCES.md`)؛ ختمات الصوتيات من `mp3quran.net` بصيغة `https://server/surah/XXX.mp3` (رواية ورش — عمر القزابري، عبد الباسط عبد الصمد، ياسين الجزائري…).
+- **التواريخ الهجرية:** `hijri-date` بناء على جدول أم القرى.
+- **الخطوط:** [IBM Plex Sans Arabic](https://github.com/IBM/plex/) و[Amiri](https://github.com/aliftype/amiri) — رخصة SIL OFL.
+
+> استخدام المصاحف المغربية وخدمات الإذاعة يخضع لرخصة الإنتاج الإذاعي (SNRT) — راجع ملف `data/upstream/LICENSE-CC-BY-4.0.txt` و`SOURCES.md` قبل إعادة النشر التجارية.
+
+## المزايا
+
+- ✅ خطة 480 يوماً بالحصون الخمسة + عدّاد XP ورُتب (محب → حافظ متقن)
+- ✅ 3 أنواع جلسات (حفظ/تحضير/مراجعة) بمؤقّت قابل للضبط ±5 دقائق مع تنبيه صوتي واهتزاز وإشعار نظام
+- ✅ النظام الصناعي للمراجعة الدورية (قريبة/بعيدة) مع ضبط «الثمن الضعيف» وجلسة تثبيت
+- ✅ 8 إنجازات (الحصون الخمسة… الوتر… التهجد…) + 9 إنجازات خاصة (سلسلة القلاع الذهبية… حصن الأشرار… حصن التواكل…)
+- ✅ المزامنة السحابية (Supabase: بريد+كلمة مرور، رابط سحري، استعادة كلمة مرور) مع دمج تلقائي آمن
+- ✅ التذكيرات اليومية (Notification API) + وضع عدم الاتصال (PWA كامل) + ثيمات (فاتح/داكن/النظام)
+- ✅ خريطة الرحلة (60 حزباً) وسجل النشاط الحراري وتصدير/استيراد نسخة احتياطية
+- ✅ تعديل الأثمان (مع إرسال التصحيح للمراجعة) — والتطبيق بأسره RTL عربي
+
+## التشغيل
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+node generate-icons.js   # توليد الأيقونات
+npm run dev              # http://localhost:3000
+npm run build            # بناء الإنتاج
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### المزامنة السحابية (اختيارية)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. أنشئ مشروعاً في [Supabase](https://supabase.com) ونفّذ `supabase/schema.sql` في SQL Editor.
+2. فعّل مزوّد Email في Authentication (كلمة مرور + رابط سحري).
+3. ضع المتغيرات في `.env.local`:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+```
 
-## Learn More
+بدون هذه المتغيرات يعمل التطبيق كاملاً محلياً (localStorage) وستُعطَّل زرّات الحساب والمزامنة.
 
-To learn more about Next.js, take a look at the following resources:
+## البنية
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+src/
+  lib/          quran-thumuns.json (480 ثمناً) + fortress-calculator + supabase + backup…
+  store/        useHifzStore (حالة الحفظ الدائمة) + useSessionStore + useXpStore
+  hooks/        useSessionTimer + useCloudSync
+  components/   HosoonApp + الجلسات + الحصون + الإحصاءات + الإعدادات…
+scripts/        generate-thumuns.mjs + verify-data.mjs (توليد وتحقق البيانات)
+supabase/       schema.sql
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## الاختبار
 
-## Deploy on Vercel
+```bash
+npm run type-check   # TypeScript
+npm run lint         # ESLint
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+بإمكانك التحقق من سلامة بيانات الأثمان في أي وقت:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+node scripts/generate-thumuns.mjs && node scripts/verify-data.mjs
+```
+
+---
+*نسأل الله الإخلاص والقبول — «وَلَقَدْ يَسَّرْنَا الْقُرْآنَ لِلذِّكْرِ فَهَلْ مِن مُّدَّكِرٍ»*

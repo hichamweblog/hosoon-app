@@ -1,13 +1,14 @@
 "use client";
 
-import { TOTAL_THUMUNS } from "@/lib/constants";
-import { getFortressTasks } from "@/lib/fortress-calculator";
-import { useHifzStore } from "@/store/useHifzStore";
+import { TOTAL_THUMUNS } from "@/lib/quran-data";
+import { formatNum } from "@/lib/format";
+import { getAllSurahs, getThumun, THUMUNS_PER_JUZ, type EditedThumuns } from "@/lib/fortress-calculator";
+import { thumunShort, surahName } from "@/lib/quran-labels";
+import { isDayCompleted, useHifzStore } from "@/store/useHifzStore";
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckCircle2, ChevronDown, Lock, Sparkles } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { BookOpen, CheckCircle2, ChevronDown, Lock, Search, Sparkles } from "lucide-react";
+import { useMemo, useState } from "react";
 import DayPreviewModal from "./DayPreviewModal";
-import { Button } from "./ui/button";
 import { vibrateLight } from "@/lib/haptic";
 
 interface DayData {
@@ -17,7 +18,7 @@ interface DayData {
   isReviewOnly: boolean;
   surah: string;
   range: string;
-  startText: string;
+  searchText: string;
 }
 
 interface JuzMilestone {
@@ -27,113 +28,135 @@ interface JuzMilestone {
   days: DayData[];
 }
 
+/** Static journey plan (thumun per day) computed ONCE — labels only recompute on edits. */
+function dayInfo(day: number, edited: EditedThumuns): DayData {
+  const t = getThumun(day, edited);
+  return {
+    day,
+    isCompleted: false,
+    isToday: false,
+    isReviewOnly: !t,
+    surah: t ? surahName(t.startSura) : "مراجعة فقط",
+    range: t ? thumunShort(t) : "",
+    searchText: `${day} ${t ? surahName(t.startSura) + " " + surahName(t.endSura) : ""}`,
+  };
+}
+
 export default function ScheduleView() {
-  const { completedTasks, currentDay, farReviewPointer, toggleDayCompletion, editedThumuns } = useHifzStore();
+  const { completedTasks, currentDay, editedThumuns, maintain } = useHifzStore();
+  const arabic = useHifzStore((s) => s.settings.arabicNumerals);
   const [previewDay, setPreviewDay] = useState<number | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [query, setQuery] = useState("");
+  const [showSurahs, setShowSurahs] = useState(false);
 
-  // 1. Calculate the full journey
-  const maxDays = useMemo(() => {
-    let last = currentDay;
-    for (let i = 1; i <= TOTAL_THUMUNS * 1.5; i++) {
-      const tasks = getFortressTasks(i, 1, editedThumuns);
-      if (tasks.newHifz) last = i;
-    }
-    return Math.max(last, currentDay + 30);
-  }, [currentDay, editedThumuns]);
+  const q = query.trim();
 
-  const { weeklyDays, juzMilestones, currentJuz } = useMemo(() => {
-    const weekly: DayData[] = [];
-    const milestones: Record<number, JuzMilestone> = {};
-    let activeJuz = 1;
-
-    // Build the weekly window (Current day - 1 up to + 5)
+  // Weekly window: yesterday .. +5
+  const weeklyDays = useMemo(() => {
     const startWeek = Math.max(1, currentDay - 1);
-    for (let d = startWeek; d <= startWeek + 6; d++) {
-      const tasks = getFortressTasks(d, farReviewPointer || 1, editedThumuns);
-      weekly.push({
-        day: d,
-        isCompleted: completedTasks[d] !== undefined,
-        isToday: d === currentDay,
-        isReviewOnly: !tasks.newHifz,
-        surah: tasks.newHifz?.surah || "مراجعة فقط",
-        range: tasks.newHifz ? `الجزء ${tasks.newHifz.juz} · الحزب ${tasks.newHifz.hizb} · الثمن ${tasks.newHifz.id}` : "",
-        startText: tasks.newHifz?.startText || "",
+    const out: DayData[] = [];
+    for (let d = startWeek; d <= startWeek + 6 && d <= TOTAL_THUMUNS; d++) {
+      const info = dayInfo(d, editedThumuns);
+      info.isCompleted =
+        isDayCompleted(completedTasks[d], maintain.active);
+      info.isToday = d === currentDay;
+      out.push(info);
+    }
+    return out.filter((d) => !q || d.searchText.includes(q));
+  }, [currentDay, completedTasks, editedThumuns, q, maintain.active]);
+
+  // Juz milestones (static boundaries + completion state)
+  const { juzMilestones, currentJuz } = useMemo(() => {
+    const highestCompleted = Object.keys(completedTasks)
+      .map(Number)
+      .filter((d) => isDayCompleted(completedTasks[d], maintain.active))
+      .reduce((m, d) => Math.max(m, d), 0);
+    const currJuz = Math.min(30, Math.floor(Math.max(currentDay - 1, highestCompleted) / THUMUNS_PER_JUZ) + 1);
+
+    const milestones: JuzMilestone[] = [];
+    for (let j = 1; j <= 30; j++) {
+      const days: DayData[] = [];
+      let allDone = true;
+      const from = (j - 1) * THUMUNS_PER_JUZ + 1;
+      for (let d = from; d < from + THUMUNS_PER_JUZ; d++) {
+        const info = dayInfo(d, editedThumuns);
+        info.isCompleted =
+          isDayCompleted(completedTasks[d], maintain.active);
+        info.isToday = d === currentDay;
+        if (!info.isCompleted) allDone = false;
+        days.push(info);
+      }
+      milestones.push({
+        juz: j,
+        isUnlocked: j <= currJuz + 1,
+        isCompleted: allDone,
+        days: days.filter((d) => !q || d.searchText.includes(q)),
       });
     }
+    return { juzMilestones: milestones, currentJuz: currJuz };
+  }, [completedTasks, currentDay, editedThumuns, q, maintain.active]);
 
-    // Build the Juz milestones
-    for (let d = 1; d <= maxDays; d++) {
-      const tasks = getFortressTasks(d, 1);
-      if (tasks.newHifz) activeJuz = tasks.newHifz.juz;
-
-      if (!milestones[activeJuz]) {
-        milestones[activeJuz] = {
-          juz: activeJuz,
-          isUnlocked: false,
-          isCompleted: true, // Will set to false if any day is incomplete
-          days: [],
+  // فهرس السور: عدد الأثمان المكتملة في نطاق كل سورة
+  const surahProgress = useMemo(() => {
+    return getAllSurahs()
+      .map((sura) => {
+        const span = sura.lastEighth - sura.firstEighth + 1;
+        let done = 0;
+        for (let d = sura.firstEighth; d <= sura.lastEighth; d++) {
+          if (isDayCompleted(completedTasks[d], maintain.active)) done++;
+        }
+        return {
+          number: sura.number,
+          name: sura.name,
+          span,
+          done,
+          pct: span > 0 ? Math.round((done / span) * 100) : 0,
         };
-      }
-
-      const isCompleted = completedTasks[d] !== undefined;
-      if (!isCompleted) milestones[activeJuz].isCompleted = false;
-
-      milestones[activeJuz].days.push({
-        day: d,
-        isCompleted,
-        isToday: d === currentDay,
-        isReviewOnly: !tasks.newHifz,
-        surah: tasks.newHifz?.surah || "مراجعة فقط",
-        range: tasks.newHifz ? `الجزء ${tasks.newHifz.juz} · الحزب ${tasks.newHifz.hizb} · الثمن ${tasks.newHifz.id}` : "",
-        startText: tasks.newHifz?.startText || "",
-      });
-    }
-
-    // Determine unlocks
-    let currJuz = 1;
-    for (const key in milestones) {
-      const m = milestones[key];
-      if (m.days.some((d) => d.isToday || d.isCompleted)) {
-        m.isUnlocked = true;
-        currJuz = Math.max(currJuz, m.juz);
-      }
-    }
-    // Unlock the immediate next Juz as well
-    if (milestones[currJuz + 1]) milestones[currJuz + 1].isUnlocked = true;
-
-    return { weeklyDays: weekly, juzMilestones: Object.values(milestones), currentJuz: currJuz };
-  }, [maxDays, currentDay, completedTasks, farReviewPointer]);
-
-  // We no longer need to auto-scroll horizontally since it's a vertical list
-  useEffect(() => {
-    if (scrollRef.current) {
-      const todayEl = scrollRef.current.querySelector('[data-today="true"]');
-      if (todayEl) {
-        // Optional: scroll into view vertically if desired, but usually not needed for a short list
-      }
-    }
-  }, [currentDay]);
+      })
+      .filter((s) => !q || s.name.includes(q) || String(s.number) === q);
+  }, [completedTasks, maintain.active, q]);
 
   return (
     <div className="space-y-8 pb-12" dir="rtl">
-      
-      {/* ─── القسم الأول: نافذة الأسبوع ─── */}
+      {/* search */}
+      <div className="relative">
+        <Search
+          className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
+          aria-hidden
+        />
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="ابحث بسورة أو رقم ثمن…"
+          aria-label="البحث في الخطة"
+          className="w-full bg-surface border border-border rounded-xl pr-10 pl-3 py-2.5 text-sm outline-none focus:border-primary transition-colors"
+        />
+      </div>
+
+      {/* ─── الأسبوع ─── */}
       <section>
         <div className="flex items-center gap-2 mb-4 px-2">
-          <Sparkles className="w-5 h-5 text-primary" />
+          <Sparkles className="w-5 h-5 text-primary" aria-hidden />
           <h2 className="font-bold text-lg">هذا الأسبوع</h2>
         </div>
-        
         <div className="flex flex-col gap-3 px-2">
           {weeklyDays.map((d) => (
-            <div 
+            <div
               key={`week-${d.day}`}
-              data-today={d.isToday}
-              onClick={() => { vibrateLight(); setPreviewDay(d.day); }}
+              onClick={() => {
+                vibrateLight();
+                setPreviewDay(d.day);
+              }}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setPreviewDay(d.day);
+              }}
+              aria-label={`خطة الثمن ${d.day}`}
               className={`w-full p-4 rounded-2xl border cursor-pointer transition-all ${
-                d.isToday 
-                  ? "bg-surface-raised border-primary shadow-lg ring-1 ring-primary/30" 
+                d.isToday
+                  ? "bg-surface-raised border-primary shadow-lg ring-1 ring-primary/30"
                   : d.isCompleted
                     ? "bg-surface/50 border-border opacity-70"
                     : "bg-surface border-border hover:border-primary/50"
@@ -141,47 +164,107 @@ export default function ScheduleView() {
             >
               <div className="flex justify-between items-center mb-2">
                 <span className={`text-sm font-bold ${d.isToday ? "text-primary" : "text-muted-foreground"}`}>
-                  الثمن {d.day}
+                  الثمن {formatNum(d.day, arabic)}
                 </span>
-                {d.isCompleted && <CheckCircle2 className="w-5 h-5 text-primary" />}
+                {d.isCompleted && <CheckCircle2 className="w-5 h-5 text-primary" aria-hidden />}
               </div>
               <h3 className={`font-bold text-lg ${d.isCompleted ? "line-through text-muted-foreground" : ""}`}>
                 {d.surah}
               </h3>
-              {d.range && <p className="text-sm text-secondary mt-1">{d.range}</p>}
+              {d.range && <p className="text-sm text-secondary mt-1 font-quran">{d.range}</p>}
             </div>
           ))}
+          {weeklyDays.length === 0 && (
+            <p className="text-center text-muted-foreground py-6">لا نتائج مطابقة</p>
+          )}
         </div>
       </section>
 
-      {/* ─── القسم الثاني: محطات الأجزاء ─── */}
+      {/* ─── محطات الأجزاء ─── */}
       <section className="px-2">
         <h2 className="font-bold text-lg mb-4">محطات الرحلة</h2>
         <div className="space-y-4">
           {juzMilestones.map((m) => (
-            <JuzCard 
-              key={`juz-${m.juz}`} 
-              milestone={m} 
+            <JuzCard
+              key={`juz-${m.juz}`}
+              milestone={m}
               isCurrent={m.juz === currentJuz}
-              onDayClick={(day) => { vibrateLight(); setPreviewDay(day); }}
+              onDayClick={(day) => {
+                vibrateLight();
+                setPreviewDay(day);
+              }}
+              arabic={arabic}
             />
           ))}
         </div>
       </section>
 
-      {/* ─── نافذة التفاصيل ─── */}
-      {previewDay !== null && (
-        <DayPreviewModal
-          day={previewDay}
-          farReviewPointer={farReviewPointer || 1}
-          onClose={() => setPreviewDay(null)}
-        />
-      )}
+
+      {/* ─── فهرس السور — تقدّم كل سورة ─── */}
+      <section className="bg-surface rounded-[20px] p-4">
+        <button
+          type="button"
+          onClick={() => {
+            setShowSurahs((v: boolean) => !v);
+            vibrateLight();
+          }}
+          className="w-full flex items-center justify-between"
+          aria-expanded={showSurahs}
+        >
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-f-gold" aria-hidden />
+            <h2 className="font-bold text-lg">فهرس السور</h2>
+            <span className="text-xs text-muted-foreground">تقدّمك في كل سورة</span>
+          </div>
+          <ChevronDown
+            className={`w-5 h-5 text-muted-foreground transition-transform ${showSurahs ? "rotate-180" : ""}`}
+            aria-hidden
+          />
+        </button>
+        {showSurahs && (
+          <div className="mt-3 space-y-1 custom-scrollbar" style={{ maxHeight: "24rem", overflowY: "auto" }}>
+            {surahProgress.map((sura) => (
+              <div key={sura.number} className="flex items-center gap-3 py-1.5 px-1">
+                <span className="text-xs text-muted-foreground w-6">{formatNum(sura.number, arabic)}</span>
+                <span className="text-sm font-medium w-28 truncate">{sura.name}</span>
+                <div
+                  className="flex-1 h-2 bg-background rounded-full overflow-hidden"
+                  role="progressbar"
+                  aria-valuenow={sura.pct}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={`${sura.name}: ${sura.done} من ${sura.span}`}
+                >
+                  <div
+                    className="h-full bg-primary rounded-full transition-all"
+                    style={{ width: `${sura.pct}%` }}
+                  />
+                </div>
+                <span className="text-xs text-muted-foreground w-16 text-left" dir="rtl">
+                  {formatNum(sura.done, arabic)}/{formatNum(sura.span, arabic)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {previewDay !== null && <DayPreviewModal day={previewDay} onClose={() => setPreviewDay(null)} />}
     </div>
   );
 }
 
-function JuzCard({ milestone, isCurrent, onDayClick }: { milestone: JuzMilestone; isCurrent: boolean; onDayClick: (d: number) => void }) {
+function JuzCard({
+  milestone,
+  isCurrent,
+  onDayClick,
+  arabic,
+}: {
+  milestone: JuzMilestone;
+  isCurrent: boolean;
+  onDayClick: (d: number) => void;
+  arabic: boolean;
+}) {
   const [isOpen, setIsOpen] = useState(isCurrent);
 
   if (!milestone.isUnlocked) {
@@ -189,34 +272,51 @@ function JuzCard({ milestone, isCurrent, onDayClick }: { milestone: JuzMilestone
       <div className="bg-surface/40 rounded-2xl p-5 border border-border/50 flex items-center justify-between opacity-60">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-background flex items-center justify-center">
-            <Lock className="w-4 h-4 text-muted-foreground" />
+            <Lock className="w-4 h-4 text-muted-foreground" aria-hidden />
           </div>
-          <span className="font-bold text-muted-foreground">الجزء {milestone.juz}</span>
+          <span className="font-bold text-muted-foreground">الجزء {formatNum(milestone.juz, arabic)}</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`bg-surface rounded-2xl border transition-all ${isCurrent ? "border-primary/50 shadow-md" : "border-border"}`}>
-      <button 
-        onClick={() => { vibrateLight(); setIsOpen(!isOpen); }}
+    <div
+      className={`bg-surface rounded-2xl border transition-all ${isCurrent ? "border-primary/50 shadow-md" : "border-border"}`}
+    >
+      <button
+        onClick={() => {
+          vibrateLight();
+          setIsOpen(!isOpen);
+        }}
+        aria-expanded={isOpen}
         className="w-full p-5 flex items-center justify-between"
       >
         <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-            milestone.isCompleted ? "bg-primary text-primary-foreground" : isCurrent ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
-          }`}>
-            {milestone.juz}
+          <div
+            className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+              milestone.isCompleted
+                ? "bg-primary text-primary-foreground"
+                : isCurrent
+                  ? "bg-primary/20 text-primary"
+                  : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {formatNum(milestone.juz, arabic)}
           </div>
           <div className="text-right">
-            <h3 className="font-bold text-lg">الجزء {milestone.juz}</h3>
+            <h3 className="font-bold text-lg">الجزء {formatNum(milestone.juz, arabic)}</h3>
             <p className="text-xs text-muted-foreground">
-              {milestone.isCompleted ? "مكتمل بالكامل 🎉" : `${milestone.days.filter(d => d.isCompleted).length} من ${milestone.days.length} أثمان`}
+              {milestone.isCompleted
+                ? "مكتمل بالكامل"
+                : `${formatNum(milestone.days.filter((d) => d.isCompleted).length, arabic)} من ${formatNum(milestone.days.length, arabic)} أثمان`}
             </p>
           </div>
         </div>
-        <ChevronDown className={`w-5 h-5 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
+        <ChevronDown
+          className={`w-5 h-5 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
+          aria-hidden
+        />
       </button>
 
       <AnimatePresence>
@@ -233,26 +333,25 @@ function JuzCard({ milestone, isCurrent, onDayClick }: { milestone: JuzMilestone
                   <button
                     key={d.day}
                     onClick={() => onDayClick(d.day)}
+                    aria-label={`الثمن ${d.day} — ${d.surah}`}
                     className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all relative ${
-                      d.isToday 
-                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30 scale-110 z-10" 
+                      d.isToday
+                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30 scale-110 z-10"
                         : d.isCompleted
                           ? "bg-primary/20 text-primary"
                           : "bg-background text-muted-foreground border border-border hover:border-primary/50"
                     }`}
                   >
-                    {d.isCompleted && !d.isToday ? <CheckCircle2 className="w-5 h-5" /> : d.day}
-                    
-                    {/* Small dot indicator for review-only days */}
+                    {d.isCompleted && !d.isToday ? (
+                      <CheckCircle2 className="w-5 h-5" aria-hidden />
+                    ) : (
+                      formatNum(d.day, arabic)
+                    )}
                     {d.isReviewOnly && !d.isCompleted && !d.isToday && (
-                      <div className="absolute -bottom-1 w-1.5 h-1.5 rounded-full bg-indigo-500/50" />
+                      <div className="absolute -bottom-1 w-1.5 h-1.5 rounded-full bg-f-far/60" aria-hidden />
                     )}
                   </button>
                 ))}
-              </div>
-              <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground">
-                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-primary/20" /> حفظ منجز</div>
-                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-indigo-500/50" /> مراجعة فقط</div>
               </div>
             </div>
           </motion.div>
