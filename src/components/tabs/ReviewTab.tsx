@@ -1,12 +1,16 @@
 "use client";
 
+import { XP_TABLE } from "@/lib/constants";
 import type { FortressTasks } from "@/lib/fortress-calculator";
 import type { DailyTasks } from "@/store/useHifzStore";
 import { useHifzStore } from "@/store/useHifzStore";
-import { vibrateLight, playDing } from "@/lib/haptic";
-import { motion } from "framer-motion";
-import { BookOpen, CheckCircle2, History } from "lucide-react";
+import { useSessionStore } from "@/store/useSessionStore";
 import { useXpStore } from "@/store/useXpStore";
+import { motion } from "framer-motion";
+import { BookOpen, History, Star, Undo2 } from "lucide-react";
+import TaskCheckbox from "../ui/task-checkbox";
+import ThumunCard from "./ThumunCard";
+import { thumunShort, thumunTitle } from "@/lib/quran-labels";
 
 interface Props {
   tasks: FortressTasks;
@@ -15,141 +19,157 @@ interface Props {
 }
 
 export default function ReviewTab({ tasks, dayTasks, currentDay }: Props) {
-  const { toggleTask, addXp } = useHifzStore();
-  const { addEvent } = useXpStore();
-
-  const handleOpenReviewSession = () => {
-    if (!dayTasks.review_near && tasks.reviewNear.length > 0) {
-      window.dispatchEvent(new CustomEvent("openSession", {
-        detail: { type: "review_near", target: tasks.reviewNear[0] },
-      }));
-    }
-  };
+  const toggle = useHifzStore((s) => s.toggleTask);
+  const setRating = useHifzStore((s) => s.setThumunRating);
+  const addEvent = useXpStore((s) => s.addEvent);
+  const openSession = useSessionStore((s) => s.open);
 
   return (
     <div className="space-y-4">
-
-      {/* ═══ مراجعة القريب ═══ */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-        className="surface-card p-5">
-        <div className="flex items-center justify-between mb-5">
-          <CheckBtn checked={dayTasks.review_near} onToggle={(e) => {
-            if (!dayTasks.review_near) {
-              addEvent(20, e.clientX, e.clientY);
-              addXp(20);
-            }
-            toggleTask(currentDay, "review_near");
-          }} />
-          <div className="flex items-center gap-2">
-            <h3 className="font-bold text-lg">مراجعة القريب</h3>
-            <History className="w-5 h-5 text-emerald-400" />
+      {/* ─── مراجعة القريب ─── */}
+      {tasks.reviewNear.length > 0 ? (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="surface-card p-5"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <TaskCheckbox
+              checked={!!dayTasks.review_near}
+              label="تمت مراجعة القريب"
+              onToggle={(e) => {
+                if (!dayTasks.review_near) addEvent(XP_TABLE.review_near, e.clientX, e.clientY);
+                toggle(currentDay, "review_near");
+              }}
+            />
+            <h3 className="font-bold text-lg flex items-center gap-2">
+              مراجعة القريب
+              <History className="w-5 h-5 text-f-near" aria-hidden />
+            </h3>
           </div>
-        </div>
 
-        {tasks.reviewNear.length > 0 ? (
-          <div className="space-y-4">
-            <ReviewBoundary
+          <div className="space-y-3">
+            <RangeBox
               label="من بداية"
-              thumunId={tasks.reviewNear[tasks.reviewNear.length - 1].id}
-              surah={tasks.reviewNear[tasks.reviewNear.length - 1].surah}
-              startText={tasks.reviewNear[tasks.reviewNear.length - 1].startText}
+              text={thumunShort(tasks.reviewNear[tasks.reviewNear.length - 1])}
             />
-            <ReviewBoundary
-              label="إلى نهاية"
-              thumunId={tasks.reviewNear[0].id}
-              surah={tasks.reviewNear[0].surah}
-              startText={tasks.reviewNear[0].startText}
-            />
+            <RangeBox label="إلى نهاية" text={thumunShort(tasks.reviewNear[0])} />
             {!dayTasks.review_near && (
-              <button onClick={handleOpenReviewSession}
-                className="w-full py-3 rounded-xl bg-emerald-500/10 text-emerald-500 font-bold text-sm hover:bg-emerald-500/20 transition-colors">
-                ابدأ جلسة المراجعة القريبة
+              <button
+                onClick={() =>
+                  openSession({ kind: "review_near", day: currentDay, thumuns: tasks.reviewNear })
+                }
+                className="w-full py-3 rounded-xl bg-f-near/10 text-f-near font-bold text-sm hover:bg-f-near/20 transition-colors"
+              >
+                ابدأ جلسة المراجعة القريبة (ثمانية أثمان)
               </button>
             )}
           </div>
-        ) : (
-          <p className="text-center text-muted-foreground py-6">تبدأ من الثمن الثاني للحفظ</p>
-        )}
-      </motion.div>
-
-      {/* ═══ مراجعة البعيد ═══ */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-        className="surface-card p-5">
-        <div className="flex items-center justify-between mb-5">
-          <CheckBtn checked={dayTasks.review_far} onToggle={(e) => {
-            if (!dayTasks.review_far) {
-              addEvent(20, e.clientX, e.clientY);
-              addXp(20);
-            }
-            toggleTask(currentDay, "review_far");
-          }} />
-          <div className="flex items-center gap-2">
-            <h3 className="font-bold text-lg">مراجعة البعيد</h3>
-            <BookOpen className="w-5 h-5 text-indigo-400" />
-          </div>
-        </div>
-
-        {tasks.reviewFar ? (
-          <div className="space-y-4">
-            <ReviewBoundary
-              label="من بداية"
-              thumunId={tasks.reviewFar.start.id}
-              surah={tasks.reviewFar.start.surah}
-              startText={tasks.reviewFar.start.startText}
-            />
-            <ReviewBoundary
-              label="إلى نهاية"
-              thumunId={tasks.reviewFar.end.id}
-              surah={tasks.reviewFar.end.surah}
-              startText={tasks.reviewFar.end.startText}
-            />
-            {!dayTasks.review_far && (
-              <button onClick={() => toggleTask(currentDay, "review_far")}
-                className="w-full py-3 rounded-xl bg-indigo-500/10 text-indigo-500 font-bold text-sm hover:bg-indigo-500/20 transition-colors">
-                تحديد كمكتملة
-              </button>
-            )}
-          </div>
-        ) : (
-          <p className="text-center text-muted-foreground py-6">تبدأ من الثمن التاسع للحفظ</p>
-        )}
-      </motion.div>
-    </div>
-  );
-}
-
-/* ═══ Review Boundary Display ═══ */
-function ReviewBoundary({
-  label, thumunId, surah, startText
-}: {
-  label: string; thumunId: number; surah: string; startText?: string;
-}) {
-  return (
-    <div className="bg-surface rounded-xl p-4">
-      <p className="text-xs text-muted-foreground mb-2">{label} (ثمن {thumunId}):</p>
-      <p className="font-semibold text-foreground">{surah}</p>
-      {startText && (
-        <p className="font-quran text-foreground/80 text-base leading-loose mt-1.5 truncate">
-          &quot;{startText}&quot;
+        </motion.div>
+      ) : (
+        <p className="text-center text-muted-foreground py-6 bg-surface rounded-2xl border border-border/50">
+          تبدأ مراجعة القريب من يومك الثاني على الرحلة
         </p>
+      )}
+
+      {/* ─── مراجعة البعيد ─── */}
+      {tasks.reviewFar ? (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="surface-card p-5"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <TaskCheckbox
+              checked={!!dayTasks.review_far}
+              label="تمت مراجعة البعيد"
+              onToggle={(e) => {
+                if (!dayTasks.review_far) addEvent(XP_TABLE.review_far, e.clientX, e.clientY);
+                toggle(currentDay, "review_far");
+              }}
+            />
+            <h3 className="font-bold text-lg flex items-center gap-2">
+              مراجعة البعيد
+              <BookOpen className="w-5 h-5 text-f-far" aria-hidden />
+            </h3>
+          </div>
+
+          <div className="space-y-3">
+            <RangeBox label="من بداية" text={thumunShort(tasks.reviewFar.start)} />
+            <RangeBox label="إلى نهاية" text={thumunShort(tasks.reviewFar.end)} />
+            {!dayTasks.review_far && (
+              <button
+                onClick={() =>
+                  openSession({ kind: "review_far", day: currentDay, thumuns: tasks.reviewFar!.list })
+                }
+                className="w-full py-3 rounded-xl bg-f-far/10 text-f-far font-bold text-sm hover:bg-f-far/20 transition-colors"
+              >
+                ابدأ جلسة المراجعة البعيدة ({tasks.reviewFar.list.length} أثمان)
+              </button>
+            )}
+          </div>
+        </motion.div>
+      ) : (
+        <p className="text-center text-muted-foreground py-6 bg-surface rounded-2xl border border-border/50">
+          تبدأ مراجعة البعيد من اليوم التاسع على الرحلة
+        </p>
+      )}
+
+      {/* ─── الأثمان الضعيفة ─── */}
+      {tasks.weakList.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="surface-card p-5"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <button
+              onClick={() =>
+                openSession({
+                  kind: "review_far",
+                  day: currentDay,
+                  thumuns: tasks.weakList,
+                })
+              }
+              className="text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 rounded-full px-3 py-1.5"
+            >
+              جلسة تثبيت
+            </button>
+            <h3 className="font-bold text-lg flex items-center gap-2">
+              أثمان تحتاج تثبيتاً
+              <Star className="w-5 h-5 text-red-400" aria-hidden />
+            </h3>
+          </div>
+          <div className="space-y-2">
+            {tasks.weakList.map((t) => (
+              <div key={t.id} className="flex items-center gap-2">
+                <button
+                  onClick={() => setRating(t.id, null)}
+                  aria-label={`إزالة علامة الضعف عن ${thumunTitle(t)}`}
+                  title="إزالة العلامة"
+                  className="p-1.5 rounded-full hover:bg-muted shrink-0"
+                >
+                  <Undo2 className="w-3.5 h-3.5 text-muted-foreground" aria-hidden />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <ThumunCard thumun={t} accentClass="bg-red-500/15 text-red-500" compact />
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
       )}
     </div>
   );
 }
 
-/* ═══ Checkbox helper ═══ */
-function CheckBtn({ checked, onToggle }: { checked?: boolean; onToggle: (e: React.MouseEvent) => void }) {
-  const handleToggle = (e: React.MouseEvent) => {
-    vibrateLight();
-    if (!checked) playDing();
-    onToggle(e);
-  };
+function RangeBox({ label, text }: { label: string; text: string }) {
   return (
-    <button onClick={handleToggle}
-      className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-300 ${
-        checked ? "bg-primary border-primary scale-110 shadow-[0_0_12px_rgba(79,157,126,0.5)]" : "border-muted-foreground/30 hover:border-primary/50 hover:scale-105"
-      }`}>
-      {checked && <CheckCircle2 className="w-4 h-4 text-primary-foreground" />}
-    </button>
+    <div className="bg-surface rounded-xl p-4">
+      <p className="text-xs text-muted-foreground mb-1">{label}:</p>
+      <p className="font-semibold text-foreground text-sm">{text}</p>
+    </div>
   );
 }
