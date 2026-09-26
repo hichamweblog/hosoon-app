@@ -152,16 +152,6 @@ export default function HomeTab({ tasks, dayTasks, currentDay }: Props) {
                 })
               }
             />
-            {tasks.listenHizbs && tasks.listenHizbs.length > 0 && (
-              <div className="pt-2">
-                <QuranAudioPlayer
-                  mode="hizb"
-                  targetId={tasks.listenHizbs[0]}
-                  title={`سماع الحزب ${formatNum(tasks.listenHizbs[0], arabic)}`}
-                  subtitle="ورد الاستماع لليوم"
-                />
-              </div>
-            )}
           </FortressCard>
 
           {/* ─── الحصن الثاني: التحضير ─── */}
