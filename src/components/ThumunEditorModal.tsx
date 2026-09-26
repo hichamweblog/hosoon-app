@@ -58,13 +58,13 @@ export default function ThumunEditorModal({ thumun, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-[150] bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-[150] bg-background/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-hidden"
       dir="rtl"
       role="dialog"
       aria-modal="true"
       aria-label={`تصحيح الثمن ${thumun.id}`}
     >
-      <div className="bg-card w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-border/50 relative max-h-[90vh] overflow-y-auto">
+      <div className="bg-surface w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-border relative max-h-[92dvh] overflow-y-auto overscroll-contain custom-scrollbar my-auto">
         <button
           onClick={onClose}
           aria-label="إغلاق"

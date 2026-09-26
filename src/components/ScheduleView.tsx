@@ -46,7 +46,7 @@ export default function ScheduleView() {
   const completedTasks = useHifzStore((s) => s.completedTasks);
   const currentDay = useHifzStore((s) => s.currentDay);
   const editedThumuns = useHifzStore((s) => s.editedThumuns);
-  const maintain = useHifzStore((s) => s.maintain);
+  const maintain = useHifzStore((s) => s.maintain) ?? { active: false, day: 1 };
   const arabic = useHifzStore((s) => s.settings.arabicNumerals);
   const [previewDay, setPreviewDay] = useState<number | null>(null);
   const [query, setQuery] = useState("");
@@ -61,18 +61,18 @@ export default function ScheduleView() {
     for (let d = startWeek; d <= startWeek + 6 && d <= TOTAL_THUMUNS; d++) {
       const info = dayInfo(d, editedThumuns);
       info.isCompleted =
-        isDayCompleted(completedTasks[d], maintain.active);
+        isDayCompleted(completedTasks[d], maintain?.active);
       info.isToday = d === currentDay;
       out.push(info);
     }
     return out.filter((d) => !q || d.searchText.includes(q));
-  }, [currentDay, completedTasks, editedThumuns, q, maintain.active]);
+  }, [currentDay, completedTasks, editedThumuns, q, maintain?.active]);
 
   // Juz milestones (static boundaries + completion state)
   const { juzMilestones, currentJuz } = useMemo(() => {
     const highestCompleted = Object.keys(completedTasks)
       .map(Number)
-      .filter((d) => isDayCompleted(completedTasks[d], maintain.active))
+      .filter((d) => isDayCompleted(completedTasks[d], maintain?.active))
       .reduce((m, d) => Math.max(m, d), 0);
     const currJuz = Math.min(30, Math.floor(Math.max(currentDay - 1, highestCompleted) / THUMUNS_PER_JUZ) + 1);
 
@@ -84,7 +84,7 @@ export default function ScheduleView() {
       for (let d = from; d < from + THUMUNS_PER_JUZ; d++) {
         const info = dayInfo(d, editedThumuns);
         info.isCompleted =
-          isDayCompleted(completedTasks[d], maintain.active);
+          isDayCompleted(completedTasks[d], maintain?.active);
         info.isToday = d === currentDay;
         if (!info.isCompleted) allDone = false;
         days.push(info);
@@ -97,7 +97,7 @@ export default function ScheduleView() {
       });
     }
     return { juzMilestones: milestones, currentJuz: currJuz };
-  }, [completedTasks, currentDay, editedThumuns, q, maintain.active]);
+  }, [completedTasks, currentDay, editedThumuns, q, maintain?.active]);
 
   // فهرس السور: عدد الأثمان المكتملة في نطاق كل سورة
   const surahProgress = useMemo(() => {
@@ -106,7 +106,7 @@ export default function ScheduleView() {
         const span = sura.lastEighth - sura.firstEighth + 1;
         let done = 0;
         for (let d = sura.firstEighth; d <= sura.lastEighth; d++) {
-          if (isDayCompleted(completedTasks[d], maintain.active)) done++;
+          if (isDayCompleted(completedTasks[d], maintain?.active)) done++;
         }
         return {
           number: sura.number,
@@ -117,7 +117,7 @@ export default function ScheduleView() {
         };
       })
       .filter((s) => !q || s.name.includes(q) || String(s.number) === q);
-  }, [completedTasks, maintain.active, q]);
+  }, [completedTasks, maintain?.active, q]);
 
   return (
     <div className="space-y-8 pb-12" dir="rtl">

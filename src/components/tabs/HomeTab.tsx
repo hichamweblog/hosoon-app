@@ -3,7 +3,7 @@
 import { MOTIVATIONAL_QUOTES, type TaskType, XP_TABLE } from "@/lib/constants";
 import { formatNum } from "@/lib/format";
 import { vibrateLight, vibrateSuccess } from "@/lib/haptic";
-import { thumunShort } from "@/lib/quran-labels";
+import { thumunShort, thumunTitle } from "@/lib/quran-labels";
 import { formatHijriDate } from "@/lib/hijri";
 import type { FortressTasks } from "@/lib/fortress-calculator";
 import type { DailyTasks } from "@/store/useHifzStore";
@@ -25,6 +25,7 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import TaskCheckbox from "../ui/task-checkbox";
 import ThumunCard from "./ThumunCard";
+import QuranAudioPlayer from "../audio/QuranAudioPlayer";
 
 interface Props {
   tasks: FortressTasks;
@@ -43,7 +44,7 @@ const TONE: Record<string, string> = {
 export default function HomeTab({ tasks, dayTasks, currentDay }: Props) {
   const toggle = useHifzStore((s) => s.toggleTask);
   const advanceDayFn = useHifzStore((s) => s.advanceDay);
-  const maintain = useHifzStore((s) => s.maintain);
+  const maintain = useHifzStore((s) => s.maintain) ?? { active: false, day: 1 };
   const arabic = useHifzStore((s) => s.settings.arabicNumerals);
   const openSession = useSessionStore((s) => s.open);
   const addEvent = useXpStore((s) => s.addEvent);
@@ -103,7 +104,7 @@ export default function HomeTab({ tasks, dayTasks, currentDay }: Props) {
         <p className="text-xs text-muted-foreground mt-2">— {quote.source}</p>
       </div>
 
-      {maintain.active ? (
+      {maintain?.active ? (
         <MaintainCard />
       ) : (
         <>
@@ -151,6 +152,16 @@ export default function HomeTab({ tasks, dayTasks, currentDay }: Props) {
                 })
               }
             />
+            {tasks.listenHizbs && tasks.listenHizbs.length > 0 && (
+              <div className="pt-2">
+                <QuranAudioPlayer
+                  mode="hizb"
+                  targetId={tasks.listenHizbs[0]}
+                  title={`سماع الحزب ${formatNum(tasks.listenHizbs[0], arabic)}`}
+                  subtitle="ورد الاستماع لليوم"
+                />
+              </div>
+            )}
           </FortressCard>
 
           {/* ─── الحصن الثاني: التحضير ─── */}
@@ -161,7 +172,7 @@ export default function HomeTab({ tasks, dayTasks, currentDay }: Props) {
                 sub={tasks.prepWeekly.length > 0 ? thumunShort(tasks.prepWeekly[0], arabic) : ""}
                 checked={!!dayTasks.prep_weekly}
                 task="prep_weekly"
-                  onCheck={check}
+                onCheck={check}
                 icon={<ClipboardList className="w-4 h-4" />}
                 onSession={() =>
                   openSession({ kind: "prep", day: currentDay, thumuns: tasks.prepWeekly })
@@ -192,6 +203,14 @@ export default function HomeTab({ tasks, dayTasks, currentDay }: Props) {
                 }
                 actionLabel={dayTasks.new_hifz ? undefined : "ابدأ الجلسة"}
               />
+              <div className="mt-3">
+                <QuranAudioPlayer
+                  mode="thumun"
+                  targetId={tasks.newHifz.id}
+                  title={`استماع ${thumunTitle(tasks.newHifz, arabic)}`}
+                  subtitle="سماع وتكرار ثمن الحفظ الجديد"
+                />
+              </div>
             </div>
           )}
 
@@ -244,7 +263,7 @@ export default function HomeTab({ tasks, dayTasks, currentDay }: Props) {
       )}
 
       {/* Advance */}
-      {isAllDone && !maintain.active && (
+      {isAllDone && !maintain?.active && (
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="pt-2">
           <button
             onClick={handleAdvance}
@@ -353,13 +372,14 @@ function TaskRow({
 }
 
 function MaintainCard() {
-  const maintain = useHifzStore((s) => s.maintain);
+  const maintain = useHifzStore((s) => s.maintain) ?? { active: false, day: 1 };
   const dayTasks = useHifzStore((s) => s.completedTasks[s.currentDay]) || {};
   const currentDay = useHifzStore((s) => s.currentDay);
   const toggle = useHifzStore((s) => s.toggleTask);
   const arabic = useHifzStore((s) => s.settings.arabicNumerals);
   const openSession = useSessionStore((s) => s.open);
-  const juz = ((maintain.day - 1) % 30) + 1;
+  const day = typeof maintain.day === "number" && maintain.day > 0 ? maintain.day : 1;
+  const juz = ((day - 1) % 30) + 1;
   return (
     <div className="surface-card p-5">
       <h3 className="font-bold text-lg mb-1">الختمة التثبيتية</h3>

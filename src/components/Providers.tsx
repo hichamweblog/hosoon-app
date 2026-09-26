@@ -8,7 +8,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ThemeProvider
       attribute="class"
       defaultTheme="dark"
-      enableSystem
+      themes={["dark", "ocean", "ocean-dark", "warm", "light"]}
+      enableSystem={false}
       disableTransitionOnChange
     >
       <TooltipProvider>

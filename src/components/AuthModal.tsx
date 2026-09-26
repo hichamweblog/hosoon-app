@@ -157,13 +157,13 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-[120] bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-[120] bg-background/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-hidden"
       dir="rtl"
       role="dialog"
       aria-modal="true"
       aria-label="الحساب والمزامنة"
     >
-      <div className="bg-surface rounded-3xl p-6 sm:p-8 w-full max-w-md border border-border shadow-2xl relative space-y-6">
+      <div className="bg-surface rounded-3xl p-6 sm:p-8 w-full max-w-md border border-border shadow-2xl relative space-y-6 max-h-[92dvh] overflow-y-auto overscroll-contain custom-scrollbar my-auto">
         <div className="flex items-center justify-between pb-3 border-b border-border/50">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">

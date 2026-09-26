@@ -28,7 +28,9 @@ export type ThumunRating = "weak" | "good" | "strong";
 export interface Settings {
   reminderTime: string | null; // "HH:MM" or null
   arabicNumerals: boolean;
-  reciterId: string;
+  hizbReciterId: string; // "husary" | "abdulbasit" | "benkiran"
+  thumunReciterId: string; // "sayed" | "hassaine" | "qazabri_fast" | "sayed_fast" | "benkiran_fast"
+  reciterId?: string; // legacy fallback
   /** وتيرة الختمة: أجزاء التلاوة في اليوم (1..3) */
   reciteJuzPerDay: number;
   /** وتيرة الختمة: أحزاب الاستماع في اليوم (1..3) */
@@ -122,7 +124,9 @@ const initialState = {
   settings: {
     reminderTime: null,
     arabicNumerals: true,
-    reciterId: "omar_al_kazabri",
+    hizbReciterId: "husary",
+    thumunReciterId: "sayed",
+    reciterId: "husary",
     reciteJuzPerDay: 1,
     listenHizbPerDay: 1,
   } as Settings,
@@ -176,8 +180,8 @@ export const useHifzStore = create<HifzState>()(
           const next = { ...before, [task]: !was };
           const activity = withActivity(state);
           // XP عند الانتقالات فقط (false→true يضيف، العكس يخصم) — §4.2
-          const wasFull = isDayCompleted(before, state.maintain.active);
-          const isFull = isDayCompleted(next, state.maintain.active);
+          const wasFull = isDayCompleted(before, state.maintain?.active);
+          const isFull = isDayCompleted(next, state.maintain?.active);
           let delta = was ? -xpOf(task) : xpOf(task);
           if (!wasFull && isFull) delta += xpOf("day_bonus");
           if (wasFull && !isFull) delta -= xpOf("day_bonus");
@@ -199,9 +203,9 @@ export const useHifzStore = create<HifzState>()(
         set((state) => {
           // مُوحَّد: الإكمال = كل المهام (§4.1) — لا حذف بالخطأ عند فك كل المهام.
           const existing = state.completedTasks[day] || {};
-          const isCompleted = isDayCompleted(existing, state.maintain.active);
+          const isCompleted = isDayCompleted(existing, state.maintain?.active);
           const activity = withActivity(state);
-          const keys: TaskType[] = state.maintain.active ? ["maintain_recite"] : JOURNEY_TASKS;
+          const keys: TaskType[] = state.maintain?.active ? ["maintain_recite"] : JOURNEY_TASKS;
           if (isCompleted) {
             // تفكيك اليوم: خصم مجموع XP المهام المتُمة + بونص اليوم
             let delta = xpOf("day_bonus");
@@ -360,12 +364,27 @@ export const useHifzStore = create<HifzState>()(
         set(() => ({ ...initialState, startDate: new Date().toISOString() })),
 
       hydrateFromCloud: (data) =>
-        set((state) => ({
-          ...state,
-          ...data,
-          settings: { ...state.settings, ...(data.settings ?? {}) },
-          showOnboarding: false,
-        })),
+        set((state) => {
+          const rawMaintain = data.maintain ?? state.maintain;
+          const maintain =
+            rawMaintain && typeof rawMaintain === "object"
+              ? {
+                  active: Boolean((rawMaintain as { active?: boolean }).active),
+                  day:
+                    typeof (rawMaintain as { day?: number }).day === "number" &&
+                    (rawMaintain as { day?: number }).day! > 0
+                      ? (rawMaintain as { day?: number }).day!
+                      : 1,
+                }
+              : { active: false, day: 1 };
+          return {
+            ...state,
+            ...data,
+            maintain,
+            settings: { ...state.settings, ...(data.settings ?? {}) },
+            showOnboarding: false,
+          };
+        }),
     }),
     {
       name: "hifz-storage",
@@ -406,6 +425,16 @@ export const useHifzStore = create<HifzState>()(
             ...s,
             reciteJuzPerDay: typeof s.reciteJuzPerDay === "number" ? s.reciteJuzPerDay : 1,
             listenHizbPerDay: typeof s.listenHizbPerDay === "number" ? s.listenHizbPerDay : 1,
+          };
+        }
+        // Ensure maintain is always a valid object with active and day
+        if (!p.maintain || typeof p.maintain !== "object") {
+          p.maintain = { active: false, day: 1 };
+        } else {
+          const m = p.maintain as Record<string, unknown>;
+          p.maintain = {
+            active: Boolean(m.active),
+            day: typeof m.day === "number" && m.day > 0 ? m.day : 1,
           };
         }
         return p;

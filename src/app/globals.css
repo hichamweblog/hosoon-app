@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *, .night *, .ocean-dark *, [data-theme="dark"] *, [data-theme="night"] *, [data-theme="ocean-dark"] *));
 
 @theme inline {
   --color-background: var(--background);
@@ -50,7 +50,8 @@
   --radius-3xl: 2.5rem;
 }
 
-:root {
+/* ─── 1. الفاتح الكلاسيكي (Light) ─── */
+:root, .light, [data-theme='light'] {
   --background: #faf7f1;
   --foreground: #232a24;
   --card: #ffffff;
@@ -82,9 +83,11 @@
   --f-near: #3d8f6a;
   --f-far: #5b5fa8;
   --f-gold: #b8893c;
+  color-scheme: light;
 }
 
-.dark {
+/* ─── 2. الداكن الزمردي (Dark / Night) ─── */
+.dark, [data-theme='dark'], .night, [data-theme='night'] {
   --background: #0c1512;
   --foreground: #eaf2ec;
   --card: #13201b;
@@ -116,6 +119,115 @@
   --f-near: #4fbf8d;
   --f-far: #818cf8;
   --f-gold: #d4a853;
+  color-scheme: dark;
+}
+
+/* ─── 3. المحيطي النقي (Ocean Light) ─── */
+.ocean, [data-theme='ocean'] {
+  --background: #def3f6;       /* (222,243,246) أرضية محيطية باردة ورائقة */
+  --foreground: #064273;       /* (6,66,115) الحبر المحيطي العميق */
+  --card: #edf9fa;            /* أسطح الألواح والبطاقات */
+  --card-foreground: #064273;
+  --popover: #ffffff;
+  --popover-foreground: #064273;
+  --primary: #0d7ea9;         /* زر تعبئة أساسي مع نص أبيض عالي التباين */
+  --primary-foreground: #ffffff;
+  --primary-strong: #064273;
+  --secondary: #255c82;
+  --secondary-foreground: #ffffff;
+  --accent: #1da2d8;          /* (29,162,216) أزرق محيطي حيوي */
+  --accent-foreground: #ffffff;
+  --success: #1b8a7f;
+  --success-foreground: #ffffff;
+  --destructive: #b54a48;
+  --destructive-foreground: #ffffff;
+  --muted: #c8edf5;
+  --muted-foreground: #255c82;
+  --surface: #edf9fa;
+  --surface-raised: #ffffff;
+  --border: #bfe1e8;
+  --input: #c8edf5;
+  --ring: #1da2d8;
+
+  --f-khatma: #064273;
+  --f-prep: #1da2d8;
+  --f-new: #0d7ea9;
+  --f-near: #1b8a7f;
+  --f-far: #76b6c4;          /* (118,182,196) حدود وموجات */
+  --f-gold: #1da2d8;
+  color-scheme: light;
+}
+
+/* ─── 4. محيط الليل (Ocean Dark) ─── */
+.ocean-dark, [data-theme='ocean-dark'] {
+  --background: #041829;
+  --foreground: #def3f6;
+  --card: #082842;
+  --card-foreground: #def3f6;
+  --popover: #0a3050;
+  --popover-foreground: #def3f6;
+  --primary: #1da2d8;
+  --primary-foreground: #041829;
+  --primary-strong: #7fcdff;
+  --secondary: #76b6c4;
+  --secondary-foreground: #041829;
+  --accent: #7fcdff;          /* (127,205,255) إشراق مائي */
+  --accent-foreground: #041829;
+  --success: #2dd4bf;
+  --success-foreground: #041829;
+  --destructive: #f87171;
+  --destructive-foreground: #041829;
+  --muted: #0c3556;
+  --muted-foreground: #76b6c4;
+  --surface: #0a2d4a;
+  --surface-raised: #0f3d63;
+  --border: #144973;
+  --input: #0c3556;
+  --ring: #1da2d8;
+
+  --f-khatma: #2dd4bf;
+  --f-prep: #7fcdff;
+  --f-new: #1da2d8;
+  --f-near: #38bdf8;
+  --f-far: #818cf8;
+  --f-gold: #7fcdff;
+  color-scheme: dark;
+}
+
+/* ─── 5. الرِّقّ القرآني الدافئ (Warm Parchment) ─── */
+.warm, [data-theme='warm'] {
+  --background: #f6f1e7;
+  --foreground: #2b2a25;
+  --card: #ffffff;
+  --card-foreground: #2b2a25;
+  --popover: #fbf8f2;
+  --popover-foreground: #2b2a25;
+  --primary: #8a6426;
+  --primary-foreground: #ffffff;
+  --primary-strong: #6e4e1e;
+  --secondary: #6b6558;
+  --secondary-foreground: #ffffff;
+  --accent: #a97c34;
+  --accent-foreground: #ffffff;
+  --success: #5f7040;
+  --success-foreground: #ffffff;
+  --destructive: #a24a3d;
+  --destructive-foreground: #ffffff;
+  --muted: #eee7d7;
+  --muted-foreground: #6b6558;
+  --surface: #fbf8f2;
+  --surface-raised: #ffffff;
+  --border: #e4dcc9;
+  --input: #f0e3c8;
+  --ring: #a97c34;
+
+  --f-khatma: #446b5a;
+  --f-prep: #4a7a96;
+  --f-new: #a97c34;
+  --f-near: #5f7040;
+  --f-far: #6e5c82;
+  --f-gold: #a97c34;
+  color-scheme: light;
 }
 
 @layer base {
@@ -132,10 +244,15 @@
 
 @layer utilities {
   .surface-card {
-    @apply bg-card rounded-[20px] shadow-[0_2px_12px_rgba(0,0,0,0.04)];
+    @apply bg-card rounded-[20px] shadow-[0_2px_12px_rgba(0,0,0,0.04)] border border-border/40;
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .dark .surface-card {
+  .dark .surface-card,
+  .night .surface-card,
+  .ocean-dark .surface-card,
+  [data-theme='dark'] .surface-card,
+  [data-theme='night'] .surface-card,
+  [data-theme='ocean-dark'] .surface-card {
     @apply shadow-none ring-[1px] ring-inset ring-white/[0.04];
   }
 
@@ -162,6 +279,10 @@
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
 
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(140, 140, 140, 0.35) transparent;
+  }
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
     height: 6px;

@@ -46,7 +46,7 @@ export default function HosoonApp() {
   const completedTasks = useHifzStore((s) => s.completedTasks);
   const editedThumuns = useHifzStore((s) => s.editedThumuns);
   const thumunRatings = useHifzStore((s) => s.thumunRatings);
-  const maintain = useHifzStore((s) => s.maintain);
+  const maintain = useHifzStore((s) => s.maintain) ?? { active: false, day: 1 };
   const settings = useHifzStore((s) => s.settings);
   const reminderTime = settings.reminderTime;
 
@@ -86,11 +86,11 @@ export default function HosoonApp() {
       getFortressTasks(currentDay, {
         edited: editedThumuns,
         weakIds,
-        maintain: maintain.active,
+        maintain: maintain?.active ?? false,
         reciteJuzPerDay: settings.reciteJuzPerDay,
         listenHizbPerDay: settings.listenHizbPerDay,
       }),
-    [currentDay, editedThumuns, weakIds, maintain.active, settings.reciteJuzPerDay, settings.listenHizbPerDay],
+    [currentDay, editedThumuns, weakIds, maintain?.active, settings.reciteJuzPerDay, settings.listenHizbPerDay],
   );
 
   const dayTasks = completedTasks[currentDay] || {};
@@ -109,8 +109,8 @@ export default function HosoonApp() {
   const overallPct = ((highestDay / TOTAL_THUMUNS) * 100).toFixed(1);
   const completedDays = useMemo(
     () =>
-      Object.entries(completedTasks).filter(([, t]) => isDayCompleted(t, maintain.active)).length,
-    [completedTasks, maintain.active],
+      Object.entries(completedTasks).filter(([, t]) => isDayCompleted(t, maintain?.active)).length,
+    [completedTasks, maintain?.active],
   );
   const juzCount = Math.floor(highestDay / THUMUNS_PER_JUZ);
 
@@ -276,10 +276,10 @@ export default function HosoonApp() {
               </div>
               <h1 className="text-foreground flex items-baseline gap-2">
                 <span className="text-3xl sm:text-4xl font-extrabold">
-                  {maintain.active ? "ختمة التثبيت" : `الثمن ${formatNum(currentDay, arabic)}`}
+                  {maintain?.active ? "ختمة التثبيت" : `الثمن ${formatNum(currentDay, arabic)}`}
                 </span>
                 <span className="text-base font-medium text-muted-foreground">
-                  {maintain.active ? "ورد الرسوخ" : "من الرحلة"}
+                  {maintain?.active ? "ورد الرسوخ" : "من الرحلة"}
                 </span>
               </h1>
               <p className="text-sm text-muted-foreground">

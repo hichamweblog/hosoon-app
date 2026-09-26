@@ -11,7 +11,7 @@ import {
   syncProgressToCloud,
 } from "@/lib/supabase";
 import { ensureNotificationPermission, scheduleDailyReminder, showReminderNotification } from "@/lib/reminders";
-import { getReciters } from "@/lib/quran-data";
+import { HIZB_RECITERS, THUMUN_RECITERS } from "@/lib/quran-audio";
 import { validateBackup, BACKUP_VERSION, type BackupFile } from "@/lib/backup";
 import { localDateKey } from "@/lib/format";
 import { vibrateLight, vibrateSuccess } from "@/lib/haptic";
@@ -30,12 +30,14 @@ import {
 } from "./ui/alert-dialog";
 import {
   Bell,
+  Check,
   CheckCircle2,
   Cloud,
   Download,
   Languages,
   LogIn,
   LogOut,
+  Palette,
   RefreshCw,
   RotateCcw,
   Trash2,
@@ -43,6 +45,8 @@ import {
   X,
 } from "lucide-react";
 import AuthModal from "./AuthModal";
+import { useTheme } from "next-themes";
+import { APP_THEMES } from "@/lib/themes";
 
 interface Props {
   onClose: () => void;
@@ -51,6 +55,7 @@ interface Props {
 export default function SettingsModal({ onClose }: Props) {
   const state = useHifzStore();
   const { settings, updateSettings, resetProgress, setLastCloudSync } = state;
+  const { theme, setTheme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showResetAlert, setShowResetAlert] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -223,26 +228,80 @@ export default function SettingsModal({ onClose }: Props) {
     await handleSignOut();
   };
 
-  const reciters = getReciters();
-
   return (
     <>
       <div
-        className="fixed inset-0 z-[110] bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-0"
+        className="fixed inset-0 z-[110] bg-background/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-hidden"
         dir="rtl"
         role="dialog"
         aria-modal="true"
         aria-label="الإعدادات"
       >
-        <div className="bg-surface rounded-3xl p-6 w-full max-w-sm border border-border shadow-2xl relative animate-in slide-in-from-bottom-10 sm:zoom-in-95 max-h-[92vh] overflow-y-auto">
-          <div className="flex justify-between items-center mb-6 sticky top-0 bg-surface/95 backdrop-blur pb-2 z-10">
+        <div className="bg-surface rounded-3xl w-full max-w-md border border-border shadow-2xl relative animate-in slide-in-from-bottom-10 sm:zoom-in-95 max-h-[90dvh] flex flex-col min-h-0 overflow-hidden my-auto">
+          {/* Fixed Header */}
+          <div className="flex justify-between items-center px-6 py-4 border-b border-border/40 shrink-0 bg-surface/95 backdrop-blur-sm">
             <h2 className="font-bold text-xl">الإعدادات</h2>
             <Button variant="ghost" size="icon" onClick={() => { vibrateLight(); onClose(); }} className="rounded-full" aria-label="إغلاق">
               <X className="w-5 h-5 text-muted-foreground" />
             </Button>
           </div>
 
-          <div className="space-y-3">
+          {/* Scrollable Body */}
+          <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0 custom-scrollbar overscroll-contain">
+            {/* ─── سمة المظهر والألوان ─── */}
+            <div className="bg-background rounded-2xl p-4 border border-border">
+              <div className="flex items-center justify-between mb-3">
+                <p className="font-bold text-sm flex items-center gap-2">
+                  <Palette className="w-4 h-4 text-primary" aria-hidden /> سمة المظهر والألوان
+                </p>
+                <span className="text-xs font-medium text-muted-foreground">
+                  {APP_THEMES.find((t) => t.id === theme)?.name ?? "مخصّص"}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {APP_THEMES.map((th) => {
+                  const isSelected = theme === th.id;
+                  return (
+                    <button
+                      key={th.id}
+                      type="button"
+                      onClick={() => {
+                        vibrateLight();
+                        setTheme(th.id);
+                      }}
+                      className={`flex flex-col gap-2 p-2.5 rounded-xl border text-right transition-all relative ${
+                        isSelected
+                          ? "border-primary bg-primary/10 shadow-xs ring-1 ring-primary"
+                          : "border-border/60 hover:border-primary/40 bg-surface/50"
+                      }`}
+                      aria-pressed={isSelected}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span className="text-xs font-bold leading-tight">{th.name}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                      </div>
+                      <div className="flex items-center gap-1.5 pt-0.5">
+                        <span
+                          className="w-3.5 h-3.5 rounded-full border border-black/10 shrink-0 shadow-xs"
+                          style={{ backgroundColor: th.colors[0] }}
+                          title="الخلفية"
+                        />
+                        <span
+                          className="w-3.5 h-3.5 rounded-full border border-black/10 shrink-0 shadow-xs"
+                          style={{ backgroundColor: th.colors[1] }}
+                          title="الأساسي"
+                        />
+                        <span
+                          className="w-3.5 h-3.5 rounded-full border border-black/10 shrink-0 shadow-xs"
+                          style={{ backgroundColor: th.colors[2] }}
+                          title="التمييز"
+                        />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             {/* ─── التذكير اليومي ─── */}
             <div className="bg-background rounded-2xl p-4 border border-border">
               <div className="flex items-center justify-between mb-2">
@@ -296,22 +355,43 @@ export default function SettingsModal({ onClose }: Props) {
                   />
                 </button>
               </div>
+              {/* قارئ سماع الأحزاب */}
               <div className="flex items-center justify-between">
-                <label htmlFor="reciter-select" className="font-bold text-sm">
-                  قارئ الاستماع
+                <label htmlFor="hizb-reciter-select" className="font-bold text-sm">
+                  قارئ الأحزاب (الختمة)
                 </label>
                 <select
-                  id="reciter-select"
-                  value={settings.reciterId}
-                  onChange={(e) => updateSettings({ reciterId: e.target.value })}
+                  id="hizb-reciter-select"
+                  value={settings.hizbReciterId || "husary"}
+                  onChange={(e) => updateSettings({ hizbReciterId: e.target.value })}
                   className="bg-surface border border-border rounded-lg px-2 py-1.5 text-xs max-w-[55%]"
                 >
-                  {reciters.map((r) => (
+                  {HIZB_RECITERS.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name}
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* قارئ سماع الأثمان */}
+              <div className="flex items-center justify-between">
+                <label htmlFor="thumun-reciter-select" className="font-bold text-sm">
+                  قارئ الأثمان (الحفظ)
+                </label>
+                <select
+                  id="thumun-reciter-select"
+                  value={settings.thumunReciterId || "sayed"}
+                  onChange={(e) => updateSettings({ thumunReciterId: e.target.value })}
+                  className="bg-surface border border-border rounded-lg px-2 py-1.5 text-xs max-w-[55%]"
+                >
+                  {THUMUN_RECITERS.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} {"speedLabel" in r && r.speedLabel ? `(${r.speedLabel})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -355,7 +435,7 @@ export default function SettingsModal({ onClose }: Props) {
                   </select>
                 </div>
               </div>
-              </div>
+
               <p className="text-[10px] text-muted-foreground">
                 جميع التلاوات برواية ورش عن نافع من طريق المدرسة المغربية
               </p>

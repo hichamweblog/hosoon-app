@@ -51,7 +51,7 @@ export default function KhatmaCelebration() {
 
   return (
     <div
-      className="fixed inset-0 z-[130] bg-background/85 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-[130] bg-background/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-hidden"
       dir="rtl"
       role="dialog"
       aria-modal="true"
@@ -61,7 +61,7 @@ export default function KhatmaCelebration() {
         initial={{ scale: 0.9, y: 20, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 22 }}
-        className="bg-surface rounded-3xl p-8 w-full max-w-md text-center border border-f-gold/40 shadow-2xl space-y-5"
+        className="bg-surface rounded-3xl p-6 sm:p-8 w-full max-w-md text-center border border-f-gold/40 shadow-2xl space-y-5 max-h-[92dvh] overflow-y-auto overscroll-contain custom-scrollbar my-auto"
       >
         <div className="w-20 h-20 mx-auto rounded-full bg-f-gold/15 flex items-center justify-center">
           <BookHeart className="w-10 h-10 text-f-gold" aria-hidden />

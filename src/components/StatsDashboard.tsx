@@ -50,7 +50,7 @@ export default function StatsDashboard() {
   const totalXp = useHifzStore((s) => s.totalXp);
   const sessionLog = useHifzStore((s) => s.sessionLog);
   const thumunRatings = useHifzStore((s) => s.thumunRatings);
-  const maintain = useHifzStore((s) => s.maintain);
+  const maintain = useHifzStore((s) => s.maintain) ?? { active: false, day: 1 };
   const arabic = useHifzStore((s) => s.settings.arabicNumerals);
 
   const highestDay = useMemo(() => {
@@ -62,8 +62,8 @@ export default function StatsDashboard() {
 
   const totalCompleted = highestDay;
   const completedDays = useMemo(
-    () => Object.values(completedTasks).filter((t) => isDayCompleted(t, maintain.active)).length,
-    [completedTasks, maintain.active],
+    () => Object.values(completedTasks).filter((t) => isDayCompleted(t, maintain?.active)).length,
+    [completedTasks, maintain?.active],
   );
   const juzCount = Math.floor(totalCompleted / THUMUNS_PER_JUZ);
 
