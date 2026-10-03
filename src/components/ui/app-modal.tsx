@@ -45,7 +45,7 @@ export function AppModal({ title, description, onClose, children, open = true, c
               <Dialog.Close render={<Button size="icon" variant="ghost" aria-label={`إغلاق ${title}`} />}><X className="size-5" aria-hidden /></Dialog.Close>
             </header>
           )}
-          {isTop && activeAudio.track && (activeAudio.playing || activeAudio.error) && <aside className="px-4 py-2 border-b border-border text-xs flex flex-wrap items-center gap-2 shrink-0" aria-label="المسار الصوتي الجاري">
+          {isTop && !customHeader && activeAudio.track && (activeAudio.playing || activeAudio.error) && <aside className="px-4 py-2 border-b border-border text-xs flex flex-wrap items-center gap-2 shrink-0" aria-label="المسار الصوتي الجاري">
             <span className="flex-1 min-w-0">الصوت النشط: {activeAudio.track.title}</span>
             {activeAudio.playing && <Button size="sm" variant="outline" aria-label="إيقاف الصوت الجاري" onClick={pauseAudio}>إيقاف</Button>}
             {activeAudio.error && <><span role="alert">{activeAudio.error}</span><Button size="sm" variant="outline" onClick={retryAudio}>إعادة محاولة الصوت الجاري</Button></>}

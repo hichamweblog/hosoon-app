@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { BookOpen, CheckCircle2, ChevronDown, Play, ArrowLeft } from "lucide-react";
-import { TASK_META, MOTIVATIONAL_QUOTES, type TaskType } from "@/lib/constants";
+import { TASK_META, MOTIVATIONAL_QUOTES, XP_TABLE, type TaskType } from "@/lib/constants";
 import { formatNum } from "@/lib/format";
 import type { FortressTasks } from "@/lib/fortress-calculator";
 import { thumunRangeLabel } from "@/lib/quran-labels";
@@ -12,6 +12,8 @@ import { celebrate } from "@/lib/effects";
 import { Button } from "../ui/button";
 import TaskCheckbox from "../ui/task-checkbox";
 import { toast } from "sonner";
+import PlanHeader from "./PlanHeader";
+import { useXpStore } from "@/store/useXpStore";
 
 interface Props { tasks: FortressTasks; dayTasks: DailyTasks; currentDay: number }
 export function sessionForTask(task: TaskType, day: number, tasks: FortressTasks): SessionInput {
@@ -27,14 +29,16 @@ const ACTIONS: Record<TaskType, string> = { new_hifz: "ابدأ الحفظ", kha
 
 export default function HomeTab({ tasks, dayTasks, currentDay }: Props) {
   const state = useHifzStore(), open = useSessionStore((s) => s.open), openReader = useMushafStore((s) => s.openReader);
+  const addXpEvent = useXpStore((s) => s.addEvent);
   const [expanded, setExpanded] = useState<TaskType | null>(null);
   const completed = isDayCompleted(dayTasks, tasks.taskKeys), celebrated = useRef(false);
   const next = tasks.taskKeys.find((key) => !dayTasks[key]);
   const arabic = state.settings.arabicNumerals;
   useEffect(() => {
-    if (completed && !celebrated.current) { celebrated.current = true; toast.success("أتممت ورد هذا اليوم — تقبل الله منك"); void celebrate(); }
+    const key = `hosoon:celebrated:${state.ownerId ?? "guest"}:${new Date().toISOString().slice(0, 10)}`;
+    if (completed && !celebrated.current && !localStorage.getItem(key)) { celebrated.current = true; localStorage.setItem(key, "1"); toast.success("أتممت ورد هذا اليوم — تقبل الله منك"); void celebrate(); }
     if (!completed) celebrated.current = false;
-  }, [completed]);
+  }, [completed, state.ownerId]);
   const description = (task: TaskType) => {
     if (task === "new_hifz" && tasks.newHifz) return thumunRangeLabel(tasks.newHifz, arabic);
     if (task === "khatma_recite" || task === "maintain_recite") return `الجزء ${tasks.reciteJuzs.map((id) => formatNum(id, arabic)).join("، ")}`;
@@ -44,6 +48,7 @@ export default function HomeTab({ tasks, dayTasks, currentDay }: Props) {
     return sorted.length ? `${formatNum(sorted.length, arabic)} أثمان · من ${formatNum(sorted[0].id, arabic)} إلى ${formatNum(sorted.at(-1)!.id, arabic)}` : "";
   };
   return <div className="space-y-4">
+    <PlanHeader title="ورد اليوم" description={`محطة ${formatNum(currentDay, arabic)} · سجّل الإنجاز بعد إتمام المادة.`} helpTitle="عن ورد اليوم" helpText="ابدأ بالخطوة التالية الظاهرة في الأعلى. كل مهمة مستقلة ويمكن فتح تفاصيلها، بينما تسجيل الإنجاز يظل مرتبطًا بورد اليوم الفعلي." />
     <section className="surface-card p-5 border-primary/40" aria-label="الخطوة التالية">
       <p className="text-sm font-semibold text-primary mb-2">{next ? "خطوتك التالية" : "ورد اليوم مكتمل"}</p>
       <h2 className="text-xl font-bold">{next ? TASK_META[next].label : "أحسنت، خذ وقتك للرسوخ"}</h2>
@@ -56,8 +61,8 @@ export default function HomeTab({ tasks, dayTasks, currentDay }: Props) {
       <div className="divide-y divide-border">
         {tasks.taskKeys.map((task) => <div key={task} className="py-3 space-y-2">
           <div className="flex items-center gap-3">
-            <TaskCheckbox checked={dayTasks[task] === true} label={`تم ${TASK_META[task].label}`} onToggle={() => state.toggleTask(currentDay, task)} />
-            <div className="flex-1 min-w-0"><p className={`font-semibold text-sm ${dayTasks[task] ? "text-muted-foreground" : ""}`}>{TASK_META[task].label}</p><p className="text-xs text-muted-foreground leading-relaxed">{description(task)}</p></div>
+          <TaskCheckbox checked={dayTasks[task] === true} label={`تم ${TASK_META[task].label}`} onToggle={(event) => { const wasDone = dayTasks[task] === true; const changed = state.toggleTask(currentDay, task); if (changed && !wasDone) { const box = event.currentTarget.getBoundingClientRect(); addXpEvent(XP_TABLE[task], box.left - 32, box.top + box.height / 2); } }} />
+          <div className="flex-1 min-w-0"><p className={`font-semibold text-sm ${dayTasks[task] ? "text-muted-foreground" : ""}`}>{TASK_META[task].label}</p><p className="text-xs text-muted-foreground leading-relaxed">{description(task)}</p></div>
             <button className="size-11 rounded-xl grid place-items-center shrink-0 hover:bg-muted" aria-label={`تفاصيل ${TASK_META[task].label}`} aria-expanded={expanded === task} onClick={() => setExpanded(expanded === task ? null : task)}><ChevronDown className={`size-4 ${expanded === task ? "rotate-180" : ""}`} aria-hidden /></button>
           </div>
           {expanded === task && <div className="p-3 rounded-xl bg-surface space-y-2">

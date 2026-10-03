@@ -1,11 +1,11 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { TaskType } from "@/lib/constants";
+import { XP_TABLE, type TaskType } from "@/lib/constants";
 import { localDateKey } from "@/lib/format";
 import { newId, nextStamp } from "@/lib/progress/clock";
 import { deriveProgress, emptyProgress } from "@/lib/progress/derive";
 import { completionId, makeDailyPlan, materialIds, memorizedIds, tasksForPlan } from "@/lib/progress/plan";
-import { correctionDraftSchema, parseProgress, settingsSchema } from "@/lib/progress/schema";
+import { parseProgress, settingsSchema } from "@/lib/progress/schema";
 import { migrateProgress } from "@/lib/progress/migrate";
 import { progressStorage, readWorkspace, backupCurrent, peekWorkspace, hasCloudProof, storageKey, writeWorkspace } from "@/lib/progress/storage";
 import { PROGRESS_VERSION, snapshotOf, type DailyPlan, type ProgressData, type Settings, type ThumunRating } from "@/lib/progress/types";
@@ -29,8 +29,6 @@ export interface HifzState extends ProgressData {
   setReviewOnlyToday: (enabled: boolean) => boolean;
   setNote: (id: number, note: string) => void;
   setThumunRating: (id: number, rating: ThumunRating | null) => void;
-  editThumun: (id: number, data: ProgressData["editedThumuns"][number]) => void;
-  clearCorrectionDraft: (id: number) => void;
   recordReviewAttempt: (id: number, rating: ThumunRating, sessionId: string) => boolean;
   logSession: (task: TaskType, day: number, seconds: number, opts?: { id?: string; date?: string; thumunIds?: number[]; abandoned?: boolean }) => void;
   finishSession: (payload: SessionPayload, seconds: number) => boolean;
@@ -70,6 +68,7 @@ function setTask(data: ProgressData, day: number, task: TaskType, done: boolean,
   const completions = { ...base.completions, [id]: {
     id, planId: plan.id, task, day, date, done, materialIds: expected, legacy: false, stamp,
   } };
+  const xp = done && !before?.done ? XP_TABLE[task] : 0;
   const memorization = { ...base.memorization };
   if (task === "new_hifz" && plan.newHifzId) {
     const prior = memorization[plan.newHifzId];
@@ -78,7 +77,7 @@ function setTask(data: ProgressData, day: number, task: TaskType, done: boolean,
       at: new Date().toISOString(), stamp,
     };
   }
-  return deriveProgress({ ...base, completions, memorization, versions: done ? activity(base, stamp, date) : base.versions });
+  return deriveProgress({ ...base, completions, memorization, totalXp: base.totalXp + xp, versions: done ? activity(base, stamp, date) : base.versions });
 }
 
 export const useHifzStore = create<HifzState>()(persist((set, get) => {
@@ -184,16 +183,6 @@ export const useHifzStore = create<HifzState>()(persist((set, get) => {
         return { ...data, thumunRatings, versions: { ...data.versions, [`rating:${id}`]: nextStamp(data) } };
       });
     },
-    editThumun: (id, proposal) => {
-      if (!validId(id)) return;
-      const fields = correctionDraftSchema.parse(proposal);
-      mutate((data) => ({ ...data, editedThumuns: { ...data.editedThumuns, [id]: fields }, versions: { ...data.versions, [`draft:${id}`]: nextStamp(data) } }));
-    },
-    clearCorrectionDraft: (id) => mutate((data) => {
-      if (!validId(id) || !data.editedThumuns[id]) return data;
-      const editedThumuns = { ...data.editedThumuns }; delete editedThumuns[id];
-      return { ...data, editedThumuns, versions: { ...data.versions, [`draft:${id}`]: nextStamp(data) } };
-    }),
     recordReviewAttempt: (thumunId, rating, sessionId) => mutate((data) => {
       if (!validId(thumunId) || !["weak", "good", "strong"].includes(rating) || !/^[\w:.-]{1,180}$/.test(sessionId)) return data;
       if (!data.memorization[thumunId]?.memorized) return data;

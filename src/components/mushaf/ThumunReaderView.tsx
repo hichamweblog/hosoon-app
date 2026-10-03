@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { ArrowRight, ChevronLeft, ChevronRight, Download, Headphones, Maximize2, Minimize2, Palette } from "lucide-react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { ArrowRight, Download, Eye, EyeOff, Headphones, Maximize2, Minimize2, Palette } from "lucide-react";
 import { useSwipeable } from "react-swipeable";
 import { useMushafStore } from "@/store/useMushafStore";
 import { useHifzStore } from "@/store/useHifzStore";
@@ -17,10 +17,30 @@ import { toast } from "sonner";
 export default function ThumunReaderView() {
   const reader = useMushafStore(), arabic = useHifzStore((s) => s.settings.arabicNumerals);
   const [loaded, setLoaded] = useState<number | null>(null), [failed, setFailed] = useState<number | null>(null), [retry, setRetry] = useState(0);
-  const [controls, setControls] = useState(true), [details, setDetails] = useState(false), [downloading, setDownloading] = useState(false);
+  const [controls, setControls] = useState(false), [details, setDetails] = useState(false), [downloading, setDownloading] = useState(false);
+  const swiped = useRef(false);
   useEffect(() => { const audio = useAudioStore.getState(); if (audio.track?.mode === "thumun" && audio.track.targetId !== reader.thumunId && audio.playing) pauseAudio(); }, [reader.thumunId]);
   const page = getMushafPageInfo(reader.currentPage, reader.thumunId), t = page.thumun;
-  const swipe = useSwipeable({ onSwipedLeft: () => { if (!reader.isZoomed) reader.nextPage(); }, onSwipedRight: () => { if (!reader.isZoomed) reader.prevPage(); }, delta: 50, preventScrollOnSwipe: false });
+  const swipe = useSwipeable({
+    onSwipeStart: () => { swiped.current = false; },
+    onSwiping: () => { swiped.current = true; },
+    onSwipedLeft: () => { if (!reader.isZoomed) reader.nextPage(); },
+    onSwipedRight: () => { if (!reader.isZoomed) reader.prevPage(); },
+    delta: 50,
+    preventScrollOnSwipe: true,
+    trackMouse: false,
+  });
+  const handlePageTap = (event: MouseEvent<HTMLDivElement>) => {
+    if (swiped.current) {
+      swiped.current = false;
+      return;
+    }
+    const { left, width } = event.currentTarget.getBoundingClientRect();
+    const position = (event.clientX - left) / width;
+    if (position < 0.2) reader.prevPage();
+    else if (position > 0.8) reader.nextPage();
+    else setControls((visible) => !visible);
+  };
   const themeClass = reader.theme === "dark" ? "dark" : reader.theme === "light" ? "light" : "warm";
   const download = async () => {
     setDownloading(true);
@@ -29,46 +49,45 @@ export default function ThumunReaderView() {
     finally { setDownloading(false); }
   };
   return <AppModal id="mushaf-reader" title={`المصحف — الثمن ${reader.thumunId}`} onClose={reader.closeReader} fullScreen customHeader className={`${themeClass} bg-background text-foreground border-0`}>
-    <div className="flex flex-col h-full min-h-0" onKeyDown={(e) => {
+    <div className="flex flex-col h-full min-h-0 bg-[#f6f0e4]" onKeyDown={(e) => {
       if ((e.target as HTMLElement).closest("input,select,textarea")) return;
       if (e.key === "ArrowLeft") { e.preventDefault(); reader.nextPage(); }
       if (e.key === "ArrowRight") { e.preventDefault(); reader.prevPage(); }
     }}>
-      {controls && <header className="shrink-0 border-b border-border bg-card px-3 py-2 space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <Button variant="ghost" onClick={reader.closeReader} aria-label="إغلاق القارئ" className="shrink-0 min-h-11 px-2"><ArrowRight className="size-4" aria-hidden /> رجوع</Button>
-          <h2 className="font-bold text-sm text-center">الثمن {formatNum(reader.thumunId, arabic)}<span className="block text-xs font-normal text-muted-foreground mt-1">الجزء {formatNum(t?.juz ?? 1, arabic)} · الحزب {formatNum(t?.hizb ?? 1, arabic)}</span></h2>
-          <div className="flex items-center gap-1">
-            <Button size="icon" variant="ghost" aria-label="تغيير مظهر المصحف" onClick={() => reader.setTheme(reader.theme === "sepia" ? "dark" : reader.theme === "dark" ? "light" : "sepia")}><Palette className="size-4" aria-hidden /></Button>
-            <Button size="icon" variant="ghost" aria-label="الاستماع إلى الثمن المحدد" aria-pressed={reader.showAudio} onClick={reader.toggleAudio}><Headphones className="size-4" aria-hidden /></Button>
-          </div>
+      <header className={`shrink-0 border-b border-border/70 bg-card/95 px-2 backdrop-blur-sm ${controls ? "py-0" : "py-0.5"}`}>
+        <div className={`flex items-center justify-between gap-0.5 ${controls ? "min-h-8" : "min-h-8"}`}>
+          {controls ? <Button size="icon-xs" variant="ghost" onClick={reader.closeReader} aria-label="إغلاق القارئ"><ArrowRight className="size-3.5" aria-hidden /></Button> : <Button variant="ghost" onClick={() => setControls(true)} aria-label="إظهار أدوات القارئ" className="shrink-0 min-h-8 px-2 text-xs text-primary"><Eye className="size-3.5" aria-hidden /> الأدوات</Button>}
+          <h2 className="font-bold text-xs text-center whitespace-nowrap">الثمن {formatNum(reader.thumunId, arabic)} <span className="font-normal text-muted-foreground">· {formatNum(t?.juz ?? 1, arabic)}/{formatNum(t?.hizb ?? 1, arabic)}</span></h2>
+          {controls ? <div className="flex items-center gap-0.5">
+            <Button size="icon-xs" variant="ghost" aria-label="مطلع الثمن وحدوده" aria-expanded={details} onClick={() => setDetails(!details)}><span className="text-[10px] font-bold">نص</span></Button>
+            <Button size="icon-xs" variant="ghost" aria-label={reader.isZoomed ? "ملاءمة الصفحة" : "تكبير الصفحة"} onClick={reader.toggleZoom}>{reader.isZoomed ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}</Button>
+            <Button size="icon-xs" variant="ghost" aria-label="تنزيل صفحات هذا الثمن" disabled={downloading} onClick={download}><Download className="size-3.5" aria-hidden /></Button>
+            <Button size="icon-xs" variant="ghost" aria-label="إخفاء أدوات القارئ" onClick={() => setControls(false)}><EyeOff className="size-3.5" aria-hidden /></Button>
+            <Button size="icon-xs" variant="ghost" aria-label="تغيير مظهر المصحف" onClick={() => reader.setTheme(reader.theme === "sepia" ? "dark" : reader.theme === "dark" ? "light" : "sepia")}><Palette className="size-3.5" aria-hidden /></Button>
+            <Button size="icon-xs" variant="ghost" aria-label="الاستماع إلى الثمن المحدد" aria-pressed={reader.showAudio} onClick={reader.toggleAudio}><Headphones className="size-3.5" aria-hidden /></Button>
+          </div> : <span className="text-xs text-muted-foreground">{formatNum(reader.currentPage, arabic)} / {formatNum(TOTAL_MUSHAF_PAGES, arabic)}</span>}
         </div>
-        <div className="flex items-center justify-between gap-2 text-xs">
-          <button className="text-primary min-h-8 text-right min-w-0 flex-1" aria-expanded={details} onClick={() => setDetails(!details)}>مطلع الثمن وحدوده</button>
-          <Button size="icon" variant="ghost" aria-label={reader.isZoomed ? "ملاءمة الصفحة" : "تكبير الصفحة"} onClick={reader.toggleZoom}>{reader.isZoomed ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}</Button>
-          <Button size="icon" variant="ghost" aria-label="تنزيل صفحات هذا الثمن" disabled={downloading} onClick={download}><Download className="size-4" aria-hidden /></Button>
-        </div>
-        {details && <div className="rounded-xl bg-surface p-3 space-y-1 max-h-[25dvh] overflow-y-auto" tabIndex={0}><p className="font-quran text-lg">{getThumunIncipit(reader.thumunId)}</p>{t && <p className="text-xs leading-relaxed">{thumunRangeLabel(t, arabic)}</p>}<p className="text-xs text-muted-foreground">صور مصحف الأثمان (485 صفحة)؛ ترقيم الصور مستقل عن ترقيم مصدر بيانات الحدود.</p></div>}
-        {page.sharedThumunIds.length > 1 && <p className="text-xs text-muted-foreground leading-relaxed" data-testid="shared-page-context">صفحة مشتركة للأثمان {page.sharedThumunIds.map((id) => formatNum(id, arabic)).join(" و")}. العنوان والصوت للثمن المحدد {formatNum(reader.thumunId, arabic)}.</p>}
-      </header>}
-      <div {...swipe} className={`flex-1 min-h-0 relative ${reader.isZoomed ? "overflow-auto" : "overflow-hidden flex items-center justify-center"}`} aria-label={`صفحة المصحف ${reader.currentPage}`}>
-        <button className="absolute top-2 left-2 z-10 rounded-full border border-border bg-card/90 text-foreground px-3 min-h-11 text-xs" onClick={() => setControls(!controls)}>{controls ? "إخفاء الأدوات" : "إظهار الأدوات"}</button>
+        {controls && details && <div className="rounded-xl bg-surface p-2 space-y-1 max-h-[18dvh] overflow-y-auto" tabIndex={0}><p className="font-quran text-base">{getThumunIncipit(reader.thumunId)}</p>{t && <p className="text-xs leading-relaxed">{thumunRangeLabel(t, arabic)}</p>}</div>}
+        {controls && page.sharedThumunIds.length > 1 && <p className="text-xs text-muted-foreground leading-relaxed" data-testid="shared-page-context">صفحة مشتركة للأثمان {page.sharedThumunIds.map((id) => formatNum(id, arabic)).join(" و")}. العنوان والصوت للثمن المحدد {formatNum(reader.thumunId, arabic)}.</p>}
+      </header>
+      <div {...swipe} onClick={handlePageTap} className="flex-1 min-h-0 relative overflow-hidden flex items-center justify-center bg-[#f6f0e4] touch-pan-x" aria-label={`صفحة المصحف ${reader.currentPage}`}>
         {failed === reader.currentPage ? <div role="alert" className="p-6 text-center space-y-3"><p>تعذّر تحميل صورة هذه الصفحة.</p><p className="text-sm text-muted-foreground">إن كنت دون اتصال، نزّل الصفحات عند توفر الشبكة. ملاحظاتك ومؤقت الجلسة لم يتغيرا.</p><Button variant="outline" onClick={() => { setFailed(null); setLoaded(null); setRetry((r) => r + 1); }}>إعادة تحميل الصورة</Button></div> : <>
           {/* Images are canonical local assets. No generated text replaces a missing Quran page. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img key={`${reader.currentPage}:${retry}`} src={`${page.imageUrl}${retry ? `?retry=${retry}` : ""}`} alt={`صورة صفحة ${formatNum(reader.currentPage, arabic)} من مصحف الأثمان`} onLoad={() => setLoaded(reader.currentPage)} onError={() => setFailed(reader.currentPage)}
-            className={reader.isZoomed ? "w-full h-auto max-w-4xl mx-auto" : "max-w-full max-h-full object-contain"} style={{ opacity: loaded === reader.currentPage ? 1 : 0, filter: reader.theme === "dark" ? "invert(0.92) hue-rotate(180deg)" : undefined }} />
+            className={`block w-full h-full object-fill select-none ${reader.isZoomed ? "scale-150" : ""}`} style={{ opacity: loaded === reader.currentPage ? 1 : 0, filter: reader.theme === "dark" ? "invert(0.92) hue-rotate(180deg)" : undefined }} />
           {loaded !== reader.currentPage && <p role="status" className="absolute inset-0 grid place-items-center text-sm text-muted-foreground">جارٍ تحميل الصفحة…</p>}
         </>}
       </div>
-      {reader.showAudio && controls && <div className="shrink-0 px-3 pt-2 max-h-[32dvh] overflow-y-auto bg-card" tabIndex={0} aria-label="صوت الثمن المحدد"><QuranAudioPlayer mode="thumun" targetId={reader.thumunId} title={`الثمن ${formatNum(reader.thumunId, arabic)}`} compact /></div>}
-      {controls && <footer className="shrink-0 bg-card border-t border-border p-2 pb-safe space-y-1">
+      {controls && <footer className="shrink-0 bg-card/95 border-t border-border/70 px-2 py-0.5 pb-safe backdrop-blur-sm">
+        {reader.showAudio && <div className="mx-auto max-w-lg border-b border-border/60 pb-0.5" aria-label="صوت الثمن المحدد">
+          <QuranAudioPlayer mode="thumun" targetId={reader.thumunId} title={`الثمن ${formatNum(reader.thumunId, arabic)}`} currentAyah={t?.startAya} compact minimal />
+        </div>}
         <div className="flex items-center justify-between gap-1 max-w-lg mx-auto">
-          <Button size="icon" variant="ghost" aria-label="الصفحة السابقة" disabled={reader.currentPage <= 1} onClick={reader.prevPage}><ChevronRight className="size-5" /></Button>
-          <span className="text-sm font-bold">صفحة {formatNum(reader.currentPage, arabic)} / {formatNum(TOTAL_MUSHAF_PAGES, arabic)}</span>
-          <Button size="icon" variant="ghost" aria-label="الصفحة التالية" disabled={reader.currentPage >= TOTAL_MUSHAF_PAGES} onClick={reader.nextPage}><ChevronLeft className="size-5" /></Button>
+          <Button variant="ghost" className="min-h-9 px-2 text-xs" disabled={reader.thumunId <= 1} onClick={reader.prevThumun}>ثمن سابق</Button>
+          <span className="text-xs font-bold">صفحة {formatNum(reader.currentPage, arabic)} / {formatNum(TOTAL_MUSHAF_PAGES, arabic)}</span>
+          <Button variant="ghost" className="min-h-9 px-2 text-xs" disabled={reader.thumunId >= 480} onClick={reader.nextThumun}>ثمن تالٍ</Button>
         </div>
-        <div className="flex justify-between gap-2 max-w-lg mx-auto"><Button variant="outline" className="flex-1 min-h-11 text-sm" disabled={reader.thumunId <= 1} onClick={reader.prevThumun}>ثمن سابق</Button><Button variant="outline" className="flex-1 min-h-11 text-sm" disabled={reader.thumunId >= 480} onClick={reader.nextThumun}>ثمن تالٍ</Button></div>
       </footer>}
     </div>
   </AppModal>;

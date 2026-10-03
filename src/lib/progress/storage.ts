@@ -52,7 +52,7 @@ export const progressStorage: StateStorage = {
       if ((envelope.version ?? 0) < PROGRESS_VERSION) {
         saveRecovery(raw, owner, "migration");
         const data = migrateProgress(envelope.state, envelope.version ?? 0, owner);
-        useAppStatusStore.getState().setStatus({ migrationNotice: "رُحّلت بياناتك بأمان. الرصيد القديم محفوظ منفصلًا؛ التصحيحات القديمة مسودات، والمحـفوظ لا يعني إنجاز أوراد تاريخية." });
+        useAppStatusStore.getState().setStatus({ migrationNotice: "رُحّلت بياناتك بأمان. الرصيد القديم محفوظ منفصلًا؛ المحفوظ لا يعني إنجاز أوراد تاريخية." });
         return JSON.stringify({ state: data, version: PROGRESS_VERSION });
       }
       decodeStored(raw, owner); // Even matching persist versions require validation.

@@ -5,11 +5,12 @@ import { useMounted } from "@/hooks/useMounted";
 import { vibrateLight } from "@/lib/haptic";
 import { APP_THEMES } from "@/lib/themes";
 import { Compass, Moon, Scroll, Sun, Waves } from "lucide-react";
-import { useTheme } from "next-themes";
+import { useAppTheme } from "./theme-context";
 import { toast } from "sonner";
+import type { AppTheme } from "./theme-context";
 
 export default function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme } = useAppTheme();
   const mounted = useMounted();
 
   if (!mounted) return <div className="w-11 h-11" aria-hidden />;
@@ -21,7 +22,7 @@ export default function ThemeToggle() {
     const currentIndex = APP_THEMES.findIndex((t) => t.id === theme);
     const nextIndex = (currentIndex + 1) % APP_THEMES.length;
     const nextTheme = APP_THEMES[nextIndex];
-    setTheme(nextTheme.id);
+    setTheme(nextTheme.id as AppTheme);
     toast.success(`السمة: ${nextTheme.name}`, { duration: 1400 });
   };
 

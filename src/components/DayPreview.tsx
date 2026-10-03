@@ -1,7 +1,5 @@
 "use client";
-import dynamic from "next/dynamic";
-import { useState } from "react";
-import { BookOpen, Pencil } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { getThumun } from "@/lib/quran-data";
 import { getFortressTasks } from "@/lib/fortress-calculator";
 import { TASK_META } from "@/lib/constants";
@@ -12,12 +10,10 @@ import { useHifzStore } from "@/store/useHifzStore";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useMushafStore } from "@/store/useMushafStore";
 import { sessionForTask } from "./tabs/HomeTab";
-import { useAppStatusStore } from "@/store/useAppStatusStore";
 import { AppModal } from "./ui/app-modal";
 import { Button } from "./ui/button";
-const Editor = dynamic(() => import("./ThumunEditor"));
 export default function DayPreview({ day, date, onClose }: { day: number; date?: string; onClose: () => void }) {
-  const state = useHifzStore(), status = useAppStatusStore(), open = useSessionStore((s) => s.open), openReader = useMushafStore((s) => s.openReader), [editing, setEditing] = useState(false);
+  const state = useHifzStore(), open = useSessionStore((s) => s.open), openReader = useMushafStore((s) => s.openReader);
   const t = getThumun(day);
   if (!t) return null;
   const plan = state.dailyPlans[date ?? localDateKey()], stored = !!plan && (!!date || plan.journeyDay === day), actual = stored && plan.date === localDateKey() && plan.journeyDay === day;
@@ -30,9 +26,7 @@ export default function DayPreview({ day, date, onClose }: { day: number; date?:
       <p className="text-sm">حالة المحفوظ: {state.memorization[day]?.memorized ? "موثّق كمحفوظ" : "غير موثّق بعد"}</p>
       <Button variant="outline" className="w-full min-h-12" onClick={() => openReader(day)}><BookOpen className="size-4" aria-hidden /> قراءة هذا الثمن</Button>
       <div className="space-y-2"><h3 className="font-bold text-base">{stored ? "مواد الخطة المحفوظة" : "مثال الحصون في هذه المحطة"}</h3>{tasks.taskKeys.map((task) => <Button key={task} variant="outline" className="w-full min-h-11 justify-start" onClick={() => open({ ...sessionForTask(task, day, tasks), planDate: date, preview: !actual })}>{stored && tasksForPlan(state, plan)[task] ? "✓ " : ""}{TASK_META[task].label}{!actual ? " — معاينة" : ""}</Button>)}</div>
-      <label className="block text-sm">ملاحظة شخصية (ليست إنجازًا)<textarea disabled={!!status.storageError || (!!state.ownerId && !status.cloudReadReady)} rows={3} value={state.notes[day] ?? ""} maxLength={10000} aria-label={`ملاحظتي على الثمن ${day}`} className="w-full mt-1 p-3 rounded-xl bg-background border border-border" onChange={(e) => state.setNote(day, e.target.value)} /></label>
-      <Button variant="ghost" className="w-full min-h-11" onClick={() => setEditing(true)}><Pencil className="size-4" aria-hidden /> اقتراح تصحيح للمراجعة{state.editedThumuns[day] ? " · لديك مسودة" : ""}</Button>
+      <label className="block text-sm">ملاحظة شخصية (ليست إنجازًا)<textarea rows={3} value={state.notes[day] ?? ""} maxLength={10000} aria-label={`ملاحظتي على الثمن ${day}`} className="w-full mt-1 p-3 rounded-xl bg-background border border-border" onChange={(e) => state.setNote(day, e.target.value)} /></label>
     </div>
-    {editing && <Editor thumunId={day} onClose={() => setEditing(false)} />}
   </AppModal>;
 }

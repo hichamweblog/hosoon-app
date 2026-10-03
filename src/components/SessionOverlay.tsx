@@ -5,7 +5,7 @@ import { useSessionTimer } from "@/hooks/useSessionTimer";
 import { formatClock, formatNum, localDateKey } from "@/lib/format";
 import { getThumun } from "@/lib/quran-data";
 import { juzThumunRange } from "@/lib/fortress-calculator";
-import { surahSpan, thumunRangeLabel, thumunTitle } from "@/lib/quran-labels";
+import { surahSpan, thumunRangeLabel } from "@/lib/quran-labels";
 import { useHifzStore, type ThumunRating } from "@/store/useHifzStore";
 import { useSessionStore, type SessionPayload } from "@/store/useSessionStore";
 import { useMushafStore } from "@/store/useMushafStore";
@@ -88,7 +88,7 @@ function SessionInner({ payload }: { payload: SessionPayload }) {
       })}</ul></div> : payload.thumuns.map((t) => <ThumunStudy key={t.id} id={t.id} audio={payload.kind === "prep" || payload.kind === "new_hifz"} />)}
       {preview && reviewing && payload.thumuns.map((t) => <ThumunStudy key={`preview-${t.id}`} id={t.id} />)}
       <section className="rounded-2xl border border-border p-4 space-y-3" aria-label="مؤقت الجلسة">
-        <p className="text-sm text-muted-foreground text-center">وقت المؤقت · الدراسة الفعلية {formatNum(Math.floor(timer.elapsed / 60), arabic)} دقيقة</p>
+        <p className="text-sm text-muted-foreground text-center">الدراسة الفعلية {formatNum(Math.floor(timer.elapsed / 60), arabic)} دقيقة</p>
         <p role="timer" className="text-4xl font-mono font-bold text-primary text-center" dir="ltr" aria-label={`متبقي ${formatClock(timer.remaining)}`}>{formatClock(timer.remaining)}</p>
         <div className="flex items-center justify-center gap-2">
           <Button size="icon" variant="ghost" aria-label="إنقاص خمس دقائق" disabled={timer.isActive || timer.duration <= 300 || payload.kind === "free_review"} onClick={() => timer.changeDuration(-5)}><Minus className="size-4" /></Button>
@@ -96,7 +96,7 @@ function SessionInner({ payload }: { payload: SessionPayload }) {
           <Button size="icon" variant="ghost" aria-label="زيادة خمس دقائق" disabled={timer.isActive || timer.duration >= 7200 || payload.kind === "free_review"} onClick={() => timer.changeDuration(5)}><Plus className="size-4" /></Button>
           <Button size="icon" variant="ghost" aria-label="إعادة المؤقت مع الاحتفاظ بوقت الدراسة" disabled={payload.kind === "free_review" && timer.done} onClick={timer.reset}><RotateCcw className="size-4" /></Button>
         </div>
-        {timer.done && <p role="status" className="text-sm text-primary text-center">انتهى وقت المؤقت؛ لا يُسجّل الإنجاز حتى تؤكده.</p>}
+        {timer.done && <p role="status" className="text-sm text-primary text-center">انتهت الجلسة؛ لا يُسجّل الإنجاز حتى تؤكده.</p>}
       </section>
     </div>
     <footer className="border-t border-border p-4 space-y-2 shrink-0">
@@ -113,7 +113,7 @@ function ThumunStudy({ id, audio = false }: { id: number; audio?: boolean }) {
   const state = useHifzStore(), status = useAppStatusStore(), openReader = useMushafStore((s) => s.openReader), t = getThumun(id)!;
   const arabic = state.settings.arabicNumerals;
   return <section className="rounded-2xl bg-surface p-4 space-y-3">
-    <h2 className="font-bold text-base break-words">{thumunTitle(t, arabic)}</h2><p className="text-sm text-muted-foreground">{thumunRangeLabel(t, arabic)}</p>
+    <h2 className="font-bold text-base break-words">الثمن {id}</h2><p className="text-sm text-muted-foreground">{thumunRangeLabel(t, arabic)}</p>
     <p className="font-quran text-xl leading-loose">{t.partialStart ? "…" : ""}{t.text}</p>
     <Button variant="outline" className="w-full min-h-11" onClick={() => openReader(id)}><BookOpen className="size-4" aria-hidden /> قراءة من المصحف</Button>
     {audio && <QuranAudioPlayer mode="thumun" targetId={id} compact />}

@@ -1,10 +1,8 @@
-// Digit & label formatting helpers (Arabic-Indic numerals option).
+// Digit & label formatting helpers. UI numerals stay western for consistent navigation.
 
-const AR_DIGITS = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
-
-export function formatNum(n: number | string, arabic = false): string {
-  const s = String(n);
-  return arabic ? s.replace(/\d/g, (d) => AR_DIGITS[Number(d)]) : s;
+export function formatNum(n: number | string, _legacyArabicNumerals = false): string {
+  void _legacyArabicNumerals;
+  return String(n);
 }
 
 export function localDateKey(d: Date = new Date()): string {

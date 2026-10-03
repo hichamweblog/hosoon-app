@@ -1,5 +1,4 @@
 import { createClient, type User, type AuthChangeEvent } from "@supabase/supabase-js";
-import { correctionFieldsSchema } from "./progress/schema";
 import { decodeCloudRow, type CloudRecord } from "./progress/cloud-dto";
 import { parseProgress } from "./progress/schema";
 import { snapshotOf, type ProgressData } from "./progress/types";
@@ -87,18 +86,6 @@ export async function replaceCloudProgress(owner: string, data: ProgressData, ex
   });
   if (error) throw cloudError(error);
   return decodeCloudRow(Array.isArray(result) ? result[0] : result, owner);
-}
-export async function submitThumunCorrection(input: { thumunId: number; fields: Record<string, unknown>; note: string; source?: string; expectedOwnerId: string }) {
-  if (!supabase) return unavailable();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user || user.id !== input.expectedOwnerId) return { error: { message: "سجّل دخولك لإرسال الاقتراح؛ يمكنك حفظ المسودة محليًا" } };
-  if (!Number.isInteger(input.thumunId) || input.thumunId < 1 || input.thumunId > 480) return { error: { message: "رقم ثمن غير صالح" } };
-  const fields = correctionFieldsSchema.safeParse(input.fields);
-  if (!fields.success || input.note.trim().length < 10 || input.note.length > 2000 || !input.source?.trim() || input.source.length > 1000)
-    return { error: { message: "تحقق من حدود الآيات وأضف سببًا ومصدرًا للاقتراح" } };
-  return supabase.from("thumun_corrections").insert({
-    thumun_id: input.thumunId, fields: fields.data, note: input.note.trim(), source: input.source.trim(), user_id: user.id,
-  });
 }
 export async function deleteAccount(expectedOwnerId: string) {
   if (!supabase) return { error: { message: "الحساب غير مهيأ" } };

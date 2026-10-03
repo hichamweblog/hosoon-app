@@ -9,13 +9,14 @@ import { formatNum } from "@/lib/format";
 import { thumunShort } from "@/lib/quran-labels";
 import { Button } from "../ui/button";
 import TaskCheckbox from "../ui/task-checkbox";
+import PlanHeader from "./PlanHeader";
 
 export default function ReviewTab({ tasks, dayTasks, currentDay }: { tasks: FortressTasks; dayTasks: DailyTasks; currentDay: number }) {
   const state = useHifzStore(), open = useSessionStore((s) => s.open), arabic = state.settings.arabicNumerals;
   const recommended = reviewDue(state).slice(0, 5);
   const cards = [{ task: "review_near" as const, title: "مراجعة القريب", list: tasks.reviewNear, icon: History }, { task: "review_far" as const, title: "مراجعة البعيد", list: tasks.reviewFar?.list ?? [], icon: BookOpen }];
   return <div className="space-y-4">
-    <h1 className="text-xl font-bold">المراجعة والرسوخ</h1>
+    <PlanHeader title="المراجعة والرسوخ" description="راجع القريب والبعيد، ثم ثبّت ما يحتاج عودة." helpTitle="عن المراجعة" helpText="المواد مرتبة حسب خطة اليوم. علّم القسم مكتملًا بعد المرور على كل ثمن، أو افتح جلسة قصيرة من الاقتراحات الإضافية." />
     {cards.map(({ task, title, list, icon: Icon }) => {
       const sorted = [...list].sort((a, b) => a.id - b.id);
       return <section key={task} className="surface-card p-5 space-y-3">

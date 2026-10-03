@@ -20,6 +20,7 @@ import { formatNum } from "@/lib/format";
 import { planToFortress, tasksForPlan, memorizedIds } from "@/lib/progress/plan";
 import { scheduleDailyReminder, cancelDailyReminder } from "@/lib/reminders";
 import ScreenBoundary from "./ScreenBoundary";
+import FloatingXpOverlay from "./FloatingXpOverlay";
 
 const loading = () => <p role="status" className="p-6 text-center text-sm text-muted-foreground">جارٍ فتح الشاشة…</p>;
 const Onboarding = dynamic(() => import("./Onboarding"), { loading });
@@ -53,7 +54,7 @@ function Workspace() {
   const state = useHifzStore(), status = useAppStatusStore(), today = useToday();
   const session = useSessionStore((s) => s.payload), readerOpen = useMushafStore((s) => s.isOpen), openReader = useMushafStore((s) => s.openReader);
   const [tab, setTab] = useState<Tab>("home"), [settingsOpen, setSettingsOpen] = useState(false);
-  const hijri = useHijriDate(state.settings.arabicNumerals), arabic = state.settings.arabicNumerals;
+  const hijri = useHijriDate(false), arabic = false;
   useEffect(() => { if (!state.ownerId || status.cloudReadReady) useHifzStore.getState().ensureTodayPlan(today); }, [today, state.ownerId, state.showOnboarding, state.currentDay, status.cloudReadReady]);
   useEffect(() => {
     scheduleDailyReminder(state.settings.reminderTime);
@@ -99,6 +100,6 @@ function Workspace() {
     {session && <ScreenBoundary onClose={() => useSessionStore.getState().close()}><SessionOverlay /></ScreenBoundary>}
     {readerOpen && <ScreenBoundary onClose={() => useMushafStore.getState().closeReader()}><Reader /></ScreenBoundary>}
     {state.khatmaCompletedAt && state.celebrationSeenAt !== state.khatmaCompletedAt && <Celebration />}
-    <ActiveAudio /><PwaManager />
+    <ActiveAudio /><PwaManager /><FloatingXpOverlay />
   </main>;
 }
