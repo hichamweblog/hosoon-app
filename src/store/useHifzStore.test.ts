@@ -64,6 +64,21 @@ describe("الإتمام والمحفوظ وسجل النشاط", () => {
     onboard(); useHifzStore.getState().advanceDay(); expect(useHifzStore.getState().currentDay).toBe(1);
     useHifzStore.getState().completeTask(1, "new_hifz"); useHifzStore.getState().advanceDay(); expect(useHifzStore.getState().currentDay).toBe(2);
   });
+  it("اعتماد ثمن إضافي يقدّم المحطة ويعيد خطط المستقبل دون تغيير ورد اليوم", () => {
+    const today = onboard(); completeToday();
+    vi.setSystemTime(new Date("2026-10-03T12:00:00Z")); useHifzStore.getState().ensureTodayPlan();
+    const future = useHifzStore.getState().dailyPlans[localDateKey()];
+    vi.setSystemTime(new Date("2026-10-02T12:00:00Z"));
+    expect(useHifzStore.getState().adoptExtraMemorization(2, "extra-session", 600)).toBe(true);
+    const data = useHifzStore.getState();
+    expect(data.memorization[2]?.source).toBe("learned");
+    expect(data.currentDay).toBe(3);
+    expect(data.dailyPlans[today.date]).toEqual(today);
+    expect(data.dailyPlans[future.date]).not.toEqual(future);
+    expect(data.dailyPlans[future.date].prepIds).toContain(4);
+    expect(data.dailyPlans[future.date].prepIds).not.toContain(2);
+    expect(data.sessions["extra-session"].thumunIds).toEqual([2]);
+  });
   it("وجود فجوة يمنع الختمة رغم اكتمال مهام المحطة 480", () => {
     useHifzStore.getState().completeOnboarding({ memorizedIds: Array.from({ length: 479 }, (_, i) => i + 1).filter((id) => id !== 3) });
     useHifzStore.setState({ currentDay: 480 }); useHifzStore.getState().ensureTodayPlan(); const data = completeToday();

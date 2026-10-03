@@ -15,14 +15,14 @@ import { Button } from "./ui/button";
 import QuranAudioPlayer from "./audio/QuranAudioPlayer";
 import { toast } from "sonner";
 
-const TITLES = { new_hifz: "جلسة الحفظ", review_near: "مراجعة القريب", review_far: "مراجعة البعيد", free_review: "تثبيت حر", prep: "جلسة التحضير", khatma: "ورد التلاوة والاستماع", khatma_recite: "جلسة التلاوة", khatma_listen: "جلسة الاستماع", maintain_recite: "ورد التثبيت" };
+const TITLES = { new_hifz: "جلسة الحفظ", extra_hifz: "حفظ ثمن إضافي", review_near: "مراجعة القريب", review_far: "مراجعة البعيد", free_review: "تثبيت حر", prep: "جلسة التحضير", khatma: "ورد التلاوة والاستماع", khatma_recite: "جلسة التلاوة", khatma_listen: "جلسة الاستماع", maintain_recite: "ورد التثبيت" };
 export default function SessionOverlay() {
   const payload = useSessionStore((s) => s.payload);
   return payload ? <SessionInner key={payload.id} payload={payload} /> : null;
 }
 function SessionInner({ payload }: { payload: SessionPayload }) {
   const state = useHifzStore(), close = useSessionStore((s) => s.close), openReader = useMushafStore((s) => s.openReader);
-  const timer = useSessionTimer(payload.minutes ?? 25), [confirmLeave, setConfirmLeave] = useState(false), [step, setStep] = useState(0);
+  const timer = useSessionTimer(payload.minutes ?? 25), [confirmLeave, setConfirmLeave] = useState(false), [confirmAdopt, setConfirmAdopt] = useState(false), [step, setStep] = useState(0);
   const status = useAppStatusStore();
   const readonly = !!status.storageError || (!!state.ownerId && !status.cloudReadReady);
   const finishing = useRef(false), arabic = state.settings.arabicNumerals;
@@ -44,7 +44,7 @@ function SessionInner({ payload }: { payload: SessionPayload }) {
   const closeCurrent = () => { if (useSessionStore.getState().payload?.id === payload.id) close(); };
   const seconds = () => payload.kind === "free_review" ? Math.min(timer.elapsed, (payload.minutes ?? 15) * 60) : timer.elapsed;
   const leave = () => {
-    if (seconds() > 0) state.logSession(preview ? "free_review" : payload.kind === "prep" ? "prep_weekly" : payload.kind === "khatma" ? "khatma_recite" : payload.kind, payload.day, seconds(), { id: payload.id, thumunIds: payload.thumuns.map((t) => t.id), abandoned: true });
+    if (seconds() > 0) state.logSession(preview ? "free_review" : payload.kind === "extra_hifz" ? "new_hifz" : payload.kind === "prep" ? "prep_weekly" : payload.kind === "khatma" ? "khatma_recite" : payload.kind, payload.day, seconds(), { id: payload.id, thumunIds: payload.thumuns.map((t) => t.id), abandoned: true });
     closeCurrent();
   };
   const requestClose = () => {
@@ -53,12 +53,25 @@ function SessionInner({ payload }: { payload: SessionPayload }) {
   };
   const finish = () => {
     if (finishing.current) return;
+    if (payload.kind === "extra_hifz") { setConfirmAdopt(true); return; }
     finishing.current = true;
     state.finishSession(payload, seconds());
     if (readonly) toast.error("لم نؤكد حفظ الجلسة؛ مساحة البيانات غير قابلة للكتابة الآن");
     else if (preview) toast.info(useHifzStore.getState().sessions[payload.id] ? "حُفظ وقت الدراسة فقط؛ المعاينة لا تسجّل إنجازًا مخططًا" : "أُغلقت المعاينة دون إنشاء وقت أو إنجاز وهمي");
     else if (payload.kind === "free_review") toast.success("حُفظ التثبيت الفردي — المراجعة المخططة لم تتغير");
     else toast.success("حُفظ إنجازك");
+    closeCurrent();
+  };
+  const adopt = () => {
+    finishing.current = true;
+    if (readonly) {
+      toast.error("لا يمكن اعتماد الثمن؛ مساحة البيانات غير قابلة للكتابة الآن");
+      finishing.current = false;
+      return;
+    }
+    const adopted = state.adoptExtraMemorization(payload.thumuns[0]?.id ?? 0, payload.id, seconds());
+    if (adopted) toast.success("اعتمدت الثمن الإضافي — حُدّثت محطة الحفظ وخطط التحضير والمراجعة القادمة");
+    else toast.error("تعذر اعتماد الثمن؛ لم يعد هو الثمن التالي المتاح");
     closeCurrent();
   };
   const rate = (rating: ThumunRating) => {
@@ -70,7 +83,8 @@ function SessionInner({ payload }: { payload: SessionPayload }) {
   const reading = ["khatma_recite", "maintain_recite", "khatma"].includes(payload.kind);
   return <AppModal id={`session-${payload.id}`} title={TITLES[payload.kind]} onClose={requestClose}>
     <div className="p-5 space-y-4 overflow-y-auto min-h-0 flex-1 overscroll-contain" tabIndex={0} aria-label="مواد الجلسة">
-      {preview && <p className="rounded-xl bg-muted p-3 text-sm">معاينة مواد فقط. لا تقييم محفوظ ولا إنجاز محطة مستقبلية؛ وقت الدراسة الفعلي يمكن حفظه كتعلّم حر.</p>}
+      {preview && payload.kind !== "extra_hifz" && <p className="rounded-xl bg-muted p-3 text-sm">معاينة مواد فقط. لا تقييم محفوظ ولا إنجاز محطة مستقبلية؛ وقت الدراسة الفعلي يمكن حفظه كتعلّم حر.</p>}
+      {payload.kind === "extra_hifz" && <p className="rounded-xl bg-primary/10 p-3 text-sm leading-relaxed">هذا ثمن اختياري خارج ورد اليوم. لا يغيّر الخطة إلا إذا صرّحت باعتماده محفوظًا.</p>}
       {payload.kind === "free_review" && <p className="text-sm text-muted-foreground">جلسة إضافية بحد {formatNum(payload.minutes ?? 15, arabic)} دقيقة؛ لا تُكمل مراجعة القريب أو البعيد. يمكنك التوقف وحفظ ما راجعته.</p>}
       {reading && recite.map((juz) => {
         const [a, b] = juzThumunRange(juz), from = getThumun(a)!, to = getThumun(b)!;
@@ -83,7 +97,7 @@ function SessionInner({ payload }: { payload: SessionPayload }) {
       </> : <div className="rounded-2xl bg-primary/10 p-4 space-y-3"><h2 className="font-bold">نتائج هذه الجلسة</h2><ul className="text-sm space-y-2">{payload.thumuns.map((t) => {
         const rating = state.reviewAttempts[`${payload.id}:${t.id}`]?.rating;
         return <li key={t.id}>الثمن {formatNum(t.id, arabic)}: {rating === "weak" ? "يحتاج تثبيتًا" : rating === "good" ? "جيد" : rating === "strong" ? "متقن" : "لم يُقيّم"}</li>;
-      })}</ul></div> : payload.thumuns.map((t) => <ThumunStudy key={t.id} id={t.id} audio={payload.kind === "prep" || payload.kind === "new_hifz"} />)}
+      })}</ul></div> : payload.thumuns.map((t) => <ThumunStudy key={t.id} id={t.id} audio={payload.kind === "prep" || payload.kind === "new_hifz" || payload.kind === "extra_hifz"} />)}
       {preview && reviewing && payload.thumuns.map((t) => <ThumunStudy key={`preview-${t.id}`} id={t.id} />)}
       <section className="rounded-2xl border border-border p-4 space-y-3" aria-label="مؤقت الجلسة">
         <p className="text-sm text-muted-foreground text-center">الدراسة الفعلية {formatNum(Math.floor(timer.elapsed / 60), arabic)} دقيقة</p>
@@ -102,9 +116,10 @@ function SessionInner({ payload }: { payload: SessionPayload }) {
         <p className="text-sm text-muted-foreground text-center">قيّم هذا الثمن وحده ثم انتقل للتالي</p>
         <div className="grid grid-cols-3 gap-2">{([["weak", "ضعيف"], ["good", "جيد"], ["strong", "متقن"]] as const).map(([rating, label]) => <Button key={rating} variant="outline" className="min-h-12" onClick={() => rate(rating)}>{label}</Button>)}</div>
         {payload.kind === "free_review" && step > 0 && <Button variant="ghost" className="w-full" onClick={finish}>اكتفِ بما راجعته واحفظ الجلسة</Button>}
-      </> : <Button className="w-full min-h-12 text-base font-bold" disabled={reviewing && !preview && !ratedAll} onClick={finish}>{preview ? "حفظ وقت الدراسة الحرة" : reviewing ? payload.kind === "free_review" ? "حفظ التثبيت الحر" : "أتممت مراجعة جميع المواد" : payload.kind === "new_hifz" ? "أتممت حفظ الثمن" : payload.kind === "prep" ? "أتممت تحضير جميع المواد" : "أتممت الورد"}</Button>}
+      </> : <Button className="w-full min-h-12 text-base font-bold" disabled={reviewing && !preview && !ratedAll} onClick={finish}>{preview ? "حفظ وقت الدراسة الحرة" : reviewing ? payload.kind === "free_review" ? "حفظ التثبيت الحر" : "أتممت مراجعة جميع المواد" : payload.kind === "extra_hifz" ? "أنهيت دراسة الثمن" : payload.kind === "new_hifz" ? "أتممت حفظ الثمن" : payload.kind === "prep" ? "أتممت تحضير جميع المواد" : "أتممت الورد"}</Button>}
     </footer>
     {confirmLeave && <ConfirmModal title="إنهاء الجلسة؟" message="سيُحفظ الوقت الفعلي والمحاولات التي قيّمتها، دون إتمام بقية الورد أو إعادة ضبط المؤقت عند فتح المصحف." confirmLabel="احفظ الوقت وأنهِ" onClose={() => setConfirmLeave(false)} onConfirm={leave} />}
+    {confirmAdopt && <ConfirmModal title="اعتماد الثمن المحفوظ؟" message="سيصبح هذا الثمن جزءًا من محفوظاتك، وتتغير محطة الحفظ التالية وخطط التحضير والمراجعة القادمة. سيبقى ورد اليوم كما هو." confirmLabel="اعتمد الثمن" onClose={() => setConfirmAdopt(false)} onConfirm={adopt} />}
   </AppModal>;
 }
 function ThumunStudy({ id, audio = false }: { id: number; audio?: boolean }) {

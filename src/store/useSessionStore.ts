@@ -5,7 +5,7 @@ import { newId } from "@/lib/progress/clock";
 import { localDateKey } from "@/lib/format";
 import { useHifzStore } from "./useHifzStore";
 
-export type SessionKind = "new_hifz" | "review_near" | "review_far" | "free_review" | "prep" | "khatma" | "khatma_recite" | "khatma_listen" | "maintain_recite";
+export type SessionKind = "new_hifz" | "extra_hifz" | "review_near" | "review_far" | "free_review" | "prep" | "khatma" | "khatma_recite" | "khatma_listen" | "maintain_recite";
 export interface SessionPayload {
   id: string;
   ownerId: string | null;
@@ -20,7 +20,7 @@ export interface SessionPayload {
 }
 export type SessionInput = Omit<SessionPayload, "id" | "ownerId" | "preview"> & { preview?: boolean };
 export const SESSION_TASK: Record<SessionKind, TaskType | null> = {
-  new_hifz: "new_hifz", review_near: "review_near", review_far: "review_far", free_review: null,
+  new_hifz: "new_hifz", extra_hifz: null, review_near: "review_near", review_far: "review_far", free_review: null,
   prep: "prep_weekly", khatma: null, khatma_recite: "khatma_recite", khatma_listen: "khatma_listen", maintain_recite: "maintain_recite",
 };
 interface SessionState { payload: SessionPayload | null; elapsed: number; setElapsed: (id: string, seconds: number) => void; open: (payload: SessionInput) => void; close: () => void }
@@ -32,7 +32,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     useHifzStore.getState().ensureTodayPlan();
     const data = useHifzStore.getState(), planDate = input.planDate ?? localDateKey();
     const plan = data.dailyPlans[planDate];
-    const preview = input.preview === true || input.day > data.currentDay || (input.kind !== "free_review" && plan?.journeyDay !== input.day);
+    const preview = input.preview === true || (input.kind !== "extra_hifz" && input.day > data.currentDay) || (input.kind !== "free_review" && input.kind !== "extra_hifz" && plan?.journeyDay !== input.day);
     set({ elapsed: 0, payload: { ...input, planDate, preview, id: newId(), ownerId: data.ownerId } });
   },
   close: () => set({ payload: null, elapsed: 0 }),

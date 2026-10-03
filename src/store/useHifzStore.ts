@@ -24,6 +24,7 @@ export interface HifzState extends ProgressData {
   toggleDayCompletion: (day: number) => void;
   markRangeComplete: (upToDay: number) => void;
   setMemorized: (id: number, memorized: boolean) => void;
+  adoptExtraMemorization: (id: number, sessionId: string, seconds: number) => boolean;
   declarePriorMemorization: (ids: number[]) => void;
   advanceDay: () => void;
   setReviewOnlyToday: (enabled: boolean) => boolean;
@@ -44,6 +45,11 @@ export interface HifzState extends ProgressData {
 }
 const volatileWorkspaces = new Map<string, { data: ProgressData; storageError: string | null }>();
 const validId = (id: number) => Number.isInteger(id) && id >= 1 && id <= 480;
+function nextUnmemorized(data: ProgressData, from: number): number {
+  let id = Math.max(1, from);
+  while (id < 480 && data.memorization[id]?.memorized) id++;
+  return id;
+}
 function canWrite(): boolean { return !useAppStatusStore.getState().storageError; }
 function error(message: string): never { throw new Error(message); }
 function activity(data: ProgressData, stamp: ReturnType<typeof nextStamp>, date = localDateKey()) {
@@ -134,6 +140,31 @@ export const useHifzStore = create<HifzState>()(persist((set, get) => {
         return { ...data, memorization, completions };
       });
     },
+    adoptExtraMemorization: (id, sessionId, seconds) => mutate((data) => {
+      if (!validId(id) || id !== nextUnmemorized(data, data.currentDay) || data.currentDay >= 480) return data;
+      if (!/^[\w:.-]{1,220}$/.test(sessionId) || !Number.isFinite(seconds) || seconds < 0) return data;
+      const stamp = nextStamp(data), at = new Date().toISOString();
+      const memorization = { ...data.memorization, [id]: { memorized: true, source: "learned" as const, at, stamp } };
+      const currentDay = nextUnmemorized({ ...data, memorization }, id);
+      const session = {
+        id: sessionId, task: "new_hifz" as const, day: id, seconds: Math.min(43200, Math.floor(seconds)),
+        date: localDateKey(), at, thumunIds: [id], abandoned: false, stamp,
+      };
+      const today = localDateKey();
+      let replanned: ProgressData = {
+        ...data, memorization, currentDay,
+        dailyPlans: Object.fromEntries(Object.entries(data.dailyPlans).filter(([date]) => date <= today)),
+      };
+      for (const date of Object.keys(data.dailyPlans).filter((date) => date > today).sort()) {
+        const plan = makeDailyPlan(replanned, date, nextStamp(replanned));
+        replanned = { ...replanned, dailyPlans: { ...replanned.dailyPlans, [date]: plan } };
+      }
+      return {
+        ...replanned,
+        sessions: { ...data.sessions, [sessionId]: session },
+        versions: { ...activity(data, stamp), currentDay: stamp },
+      };
+    }),
     declarePriorMemorization: (ids) => mutate((data) => {
       if (ids.some((id) => !validId(id))) return data;
       const selected = new Set(ids), stamp = nextStamp(data), memorization = { ...data.memorization }, completions = { ...data.completions };
@@ -221,7 +252,7 @@ export const useHifzStore = create<HifzState>()(persist((set, get) => {
         const changed = mutate((before) => setTask(setTask(before, payload.day, "khatma_recite", true, plan.date), payload.day, "khatma_listen", true, plan.date));
         get().logSession("khatma_recite", payload.day, seconds, { id: payload.id }); return changed;
       }
-      const task = payload.kind === "prep" ? "prep_weekly" : payload.kind;
+      const task = payload.kind === "extra_hifz" ? "new_hifz" : payload.kind === "prep" ? "prep_weekly" : payload.kind;
       const performed = payload.thumuns.map((t) => t.id);
       const requiresMaterials = ["new_hifz", "prep_weekly", "review_near", "review_far"].includes(task);
       if (["review_near", "review_far"].includes(task) && performed.some((id) => !data.reviewAttempts[`${payload.id}:${id}`])) return false;
