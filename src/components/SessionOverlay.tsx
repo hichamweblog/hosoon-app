@@ -22,13 +22,15 @@ export default function SessionOverlay() {
 }
 function SessionInner({ payload }: { payload: SessionPayload }) {
   const state = useHifzStore(), close = useSessionStore((s) => s.close), openReader = useMushafStore((s) => s.openReader);
-  const timer = useSessionTimer(), [confirmLeave, setConfirmLeave] = useState(false), [confirmAdopt, setConfirmAdopt] = useState(false), [step, setStep] = useState(0);
+  const timer = useSessionTimer(), [confirmAdopt, setConfirmAdopt] = useState(false), [step, setStep] = useState(0);
   const status = useAppStatusStore();
   const readonly = !!status.storageError || (!!state.ownerId && !status.cloudReadReady);
   const finishing = useRef(false), arabic = state.settings.arabicNumerals;
   const reviewing = ["review_near", "review_far", "free_review"].includes(payload.kind);
+  const preparing = payload.kind === "prep";
   const preview = readonly || payload.preview || payload.planDate !== localDateKey();
   const target = reviewing ? payload.thumuns[step] : null;
+  const prepTarget = preparing ? payload.thumuns[step] : null;
   const ratedAll = payload.thumuns.length > 0 && payload.thumuns.every((t) => state.reviewAttempts[`${payload.id}:${t.id}`]);
   useEffect(() => { useSessionStore.getState().setElapsed(payload.id, timer.elapsed); }, [payload.id, timer.elapsed]);
   useEffect(() => {
@@ -49,7 +51,7 @@ function SessionInner({ payload }: { payload: SessionPayload }) {
   };
   const requestClose = () => {
     if (useSessionStore.getState().payload?.id !== payload.id) return;
-    if (timer.isActive || timer.elapsed > 0 || step > 0) setConfirmLeave(true); else closeCurrent();
+    leave();
   };
   const finish = () => {
     if (finishing.current) return;
@@ -79,6 +81,10 @@ function SessionInner({ payload }: { payload: SessionPayload }) {
     state.recordReviewAttempt(target.id, rating, payload.id);
     setStep((value) => value + 1);
   };
+  const nextPreparation = () => {
+    if (step < payload.thumuns.length - 1) setStep((value) => value + 1);
+    else finish();
+  };
   const recite = payload.reciteJuzs ?? [];
   const reading = ["khatma_recite", "maintain_recite", "khatma"].includes(payload.kind);
   return <AppModal id={`session-${payload.id}`} title={TITLES[payload.kind]} onClose={requestClose}>
@@ -97,18 +103,18 @@ function SessionInner({ payload }: { payload: SessionPayload }) {
       </> : <div className="rounded-2xl bg-primary/10 p-4 space-y-3"><h2 className="font-bold">نتائج هذه الجلسة</h2><ul className="text-sm space-y-2">{payload.thumuns.map((t) => {
         const rating = state.reviewAttempts[`${payload.id}:${t.id}`]?.rating;
         return <li key={t.id}>الثمن {formatNum(t.id, arabic)}: {rating === "weak" ? "يحتاج تثبيتًا" : rating === "good" ? "جيد" : rating === "strong" ? "متقن" : "لم يُقيّم"}</li>;
-      })}</ul></div> : payload.thumuns.map((t) => <ThumunStudy key={t.id} id={t.id} audio={payload.kind === "prep" || payload.kind === "new_hifz" || payload.kind === "extra_hifz"} />)}
+      })}</ul></div> : preparing && prepTarget ? <><p className="text-sm font-semibold text-primary">الثمن {formatNum(step + 1, arabic)} من {formatNum(payload.thumuns.length, arabic)}</p><ThumunStudy key={prepTarget.id} id={prepTarget.id} audio /></> : payload.thumuns.map((t) => <ThumunStudy key={t.id} id={t.id} audio={payload.kind === "new_hifz" || payload.kind === "extra_hifz"} />)}
       {preview && reviewing && payload.thumuns.map((t) => <ThumunStudy key={`preview-${t.id}`} id={t.id} />)}
       <p className="text-center text-xs text-muted-foreground">يُحسب وقت الدراسة تلقائيًا أثناء نشاطك</p>
     </div>
     <footer className="border-t border-border p-4 space-y-2 shrink-0">
+      {preparing && step > 0 && <Button variant="ghost" className="w-full" onClick={() => setStep((value) => value - 1)}>السابق</Button>}
       {reviewing && target && !preview ? <>
         <p className="text-sm text-muted-foreground text-center">قيّم هذا الثمن وحده ثم انتقل للتالي</p>
         <div className="grid grid-cols-3 gap-2">{([["weak", "ضعيف"], ["good", "جيد"], ["strong", "متقن"]] as const).map(([rating, label]) => <Button key={rating} variant="outline" className="min-h-12" onClick={() => rate(rating)}>{label}</Button>)}</div>
         {payload.kind === "free_review" && step > 0 && <Button variant="ghost" className="w-full" onClick={finish}>اكتفِ بما راجعته واحفظ الجلسة</Button>}
-      </> : <Button className="w-full min-h-12 text-base font-bold" disabled={reviewing && !preview && !ratedAll} onClick={finish}>{preview ? "حفظ وقت الدراسة الحرة" : reviewing ? payload.kind === "free_review" ? "حفظ التثبيت الحر" : "أتممت مراجعة جميع المواد" : payload.kind === "extra_hifz" ? "أنهيت دراسة الثمن" : payload.kind === "new_hifz" ? "أتممت حفظ الثمن" : payload.kind === "prep" ? "أتممت تحضير جميع المواد" : "أتممت الورد"}</Button>}
+      </> : <Button className="w-full min-h-12 text-base font-bold" disabled={reviewing && !preview && !ratedAll} onClick={preparing ? nextPreparation : finish}>{preparing ? step < payload.thumuns.length - 1 ? "التالي" : "إنهاء جلسة التحضير" : preview ? "حفظ وقت الدراسة الحرة" : reviewing ? payload.kind === "free_review" ? "حفظ التثبيت الحر" : "أتممت مراجعة جميع المواد" : payload.kind === "extra_hifz" ? "أنهيت دراسة الثمن" : payload.kind === "new_hifz" ? "أتممت حفظ الثمن" : "أتممت الورد"}</Button>}
     </footer>
-    {confirmLeave && <ConfirmModal title="إنهاء الجلسة؟" message="سيُحفظ وقت النشاط الفعلي والمحاولات التي قيّمتها، دون إتمام بقية الورد عند فتح المصحف." confirmLabel="احفظ الوقت وأنهِ" onClose={() => setConfirmLeave(false)} onConfirm={leave} />}
     {confirmAdopt && <ConfirmModal title="اعتماد الثمن المحفوظ؟" message="سيصبح هذا الثمن جزءًا من محفوظاتك، وتتغير محطة الحفظ التالية وخطط التحضير والمراجعة القادمة. سيبقى ورد اليوم كما هو." confirmLabel="اعتمد الثمن" onClose={() => setConfirmAdopt(false)} onConfirm={adopt} />}
   </AppModal>;
 }

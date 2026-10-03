@@ -26,7 +26,7 @@ test("جلسة → مصحف → Back يحفظ وقت النشاط والقفل،
   await page.clock.fastForward(3000); await page.evaluate(() => history.back()); await expect(page.getByRole("button", { name: "إغلاق القارئ" })).not.toBeVisible(); await expect(session).toBeVisible();
   expect(await session.getByText("يُحسب وقت الدراسة تلقائيًا أثناء نشاطك")).toBeVisible();
   expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).toMatch(/hidden|clip/);
-  await page.evaluate(() => history.back()); const confirm = await modal(page, "إنهاء الجلسة؟"); await confirm.getByRole("button", { name: "احفظ الوقت وأنهِ" }).click();
+  await page.evaluate(() => history.back());
   await expect(page.getByRole("dialog")).toHaveCount(0); expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).not.toMatch(/hidden|clip/);
   const data = await readProgress(page); expect(Object.values(data.sessions)).toHaveLength(1); expect(Object.values(data.sessions)[0].seconds).toBeGreaterThanOrEqual(5);
 });
