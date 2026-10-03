@@ -19,12 +19,12 @@ test("4/4 = 100%، ثم إعادة الفتح تبقي الإنجاز", async ({
   await page.reload(); await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "4");
 });
 
-test("جلسة → مصحف → Back يحفظ المؤقت والقفل، ثم تأكيد المغادرة", async ({ page }) => {
+test("جلسة → مصحف → Back يحفظ وقت النشاط والقفل، ثم تأكيد المغادرة", async ({ page }) => {
   await seed(page); await open(page); await page.getByRole("button", { name: "ابدأ التلاوة", exact: true }).click(); const session = await modal(page, "جلسة التلاوة");
-  await page.clock.install({ time: new Date() }); await session.getByRole("button", { name: "بدء المؤقت", exact: true }).click(); await page.clock.fastForward(2000);
-  const before = await session.getByLabel(/^متبقي /).textContent(); await session.getByRole("button", { name: "اقرأ الجزء من المصحف" }).click(); await modal(page, "المصحف — الثمن 1");
+  await page.clock.install({ time: new Date() }); await page.clock.fastForward(2000);
+  await expect(session.getByText("يُحسب وقت الدراسة تلقائيًا أثناء نشاطك")).toBeVisible(); await session.getByRole("button", { name: "اقرأ الجزء من المصحف" }).click(); await modal(page, "المصحف — الثمن 1");
   await page.clock.fastForward(3000); await page.evaluate(() => history.back()); await expect(page.getByRole("button", { name: "إغلاق القارئ" })).not.toBeVisible(); await expect(session).toBeVisible();
-  expect(await session.getByLabel(/^متبقي /).textContent()).not.toBe(before);
+  expect(await session.getByText("يُحسب وقت الدراسة تلقائيًا أثناء نشاطك")).toBeVisible();
   expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).toMatch(/hidden|clip/);
   await page.evaluate(() => history.back()); const confirm = await modal(page, "إنهاء الجلسة؟"); await confirm.getByRole("button", { name: "احفظ الوقت وأنهِ" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0); expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).not.toMatch(/hidden|clip/);
