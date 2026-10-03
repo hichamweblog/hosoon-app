@@ -54,3 +54,5 @@ data/upstream/*.json
 .arena/
 test-results/
 playwright-report/
+supabase/.temp/
+supabase/.branches/

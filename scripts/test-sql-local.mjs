@@ -28,12 +28,12 @@ await reject(`select public.save_hosoon_progress(null,0,${json(data(a))})`,'P000
 await reject(`select public.save_hosoon_progress(0,null,${json(data(a))})`,'P0001','null epoch rejected');
 const initial = await db.query(`select public.save_hosoon_progress(0,0,${json(data(a))}) r`);
 check(initial.rows[0].r.revision === 1,'successful CAS increments revision');
-await reject(`select public.save_hosoon_progress(0,0,${json(data(a))})`,'40001','stale CAS rejected');
+await reject(`select public.save_hosoon_progress(0,0,${json(data(a))})`,'P0001','stale CAS rejected');
 const old = data(a); old.notes[1] = 'keep';
 await db.query(`select public.save_hosoon_progress(1,0,${json(old)})`);
 const reset = await db.query(`select public.reset_hosoon_progress(2,${json(data(a))}) r`);
 check(reset.rows[0].r.epoch === 1 && reset.rows[0].r.revision === 3,'reset retains row with new epoch/revision');
-await reject(`select public.save_hosoon_progress(3,0,${json(old)})`,'40001','old epoch cannot resurrect deleted notes');
+await reject(`select public.save_hosoon_progress(3,0,${json(old)})`,'P0001','old epoch cannot resurrect deleted notes');
 check((await db.query('select snapshot from public.progress_recoveries')).rows[0].snapshot.notes[1] === 'keep','server recovery archived before reset');
 await reject(`insert into thumun_corrections(thumun_id,user_id,note,source) values(1,'${b}','سبب واضح موثق','مصدر')`,'42501','cannot submit under another owner');
 await reject(`insert into thumun_corrections(thumun_id,user_id,note,source,status) values(1,'${a}','سبب واضح موثق','مصدر','approved')`,'42501','cannot self-approve correction');

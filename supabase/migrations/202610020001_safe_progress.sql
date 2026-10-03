@@ -86,13 +86,13 @@ begin
   select * into r from public.user_progress where user_id = uid for update;
   if not found then
     if p_expected_revision <> 0 or p_expected_epoch <> 0 or (p_snapshot->>'epoch')::bigint <> 0 then
-      raise exception 'HOSOON_CONFLICT' using errcode = '40001';
+      raise exception 'HOSOON_CONFLICT';
     end if;
     insert into public.user_progress(user_id, snapshot, schema_version, revision, epoch)
       values (uid, p_snapshot, 4, 1, 0) returning * into r;
   else
     if p_expected_epoch is null or p_expected_epoch < 0 or r.revision <> p_expected_revision or r.epoch <> p_expected_epoch or (p_snapshot->>'epoch')::bigint <> r.epoch then
-      raise exception 'HOSOON_CONFLICT' using errcode = '40001';
+      raise exception 'HOSOON_CONFLICT';
     end if;
     update public.user_progress set snapshot = p_snapshot, schema_version = 4, revision = r.revision + 1
       where user_id = uid returning * into r;
@@ -127,14 +127,14 @@ begin
   perform pg_advisory_xact_lock(hashtextextended(uid::text, 0));
   select * into r from public.user_progress where user_id = uid for update;
   if found then
-    if r.revision <> p_expected_revision then raise exception 'HOSOON_CONFLICT' using errcode = '40001'; end if;
+    if r.revision <> p_expected_revision then raise exception 'HOSOON_CONFLICT'; end if;
     insert into public.progress_recoveries(user_id, revision, epoch, snapshot, legacy_row)
       values(uid, r.revision, r.epoch, r.snapshot, case when r.snapshot is null then to_jsonb(r) else null end);
     delete from public.progress_recoveries where user_id = uid and revision not in
       (select revision from public.progress_recoveries where user_id = uid order by revision desc limit 3);
     next_epoch := r.epoch + 1; next_revision := r.revision + 1;
   else
-    if p_expected_revision <> 0 then raise exception 'HOSOON_CONFLICT' using errcode = '40001'; end if;
+    if p_expected_revision <> 0 then raise exception 'HOSOON_CONFLICT'; end if;
     next_epoch := 1; next_revision := 1;
   end if;
   -- Keep a reset row forever. A stale device cannot resurrect a deleted row at epoch 0.

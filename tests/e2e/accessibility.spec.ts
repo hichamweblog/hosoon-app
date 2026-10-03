@@ -18,7 +18,7 @@ for (const theme of THEMES) {
 test("Tab لا يهرب من أعلى نافذة، Escape يغلقها وحدها ويرجع التركيز", async ({ page }) => {
   await seed(page); await open(page); const trigger = page.getByRole("button", { name: "الإعدادات", exact: true }); await trigger.click(); const settings = await modal(page, "الإعدادات");
   await settings.getByRole("button", { name: /دخول لحفظ|الحساب \(المزامنة/ }).click(); const auth = await modal(page, "الحساب والمزامنة");
-  for (let i = 0; i < 12; i++) { await page.keyboard.press("Tab"); expect(await auth.evaluate((node) => node.contains(document.activeElement))).toBe(true); }
+  for (let i = 0; i < 12; i++) { await page.keyboard.press("Tab"); await expect.poll(() => auth.evaluate((node) => node.contains(document.activeElement))).toBe(true); }
   await page.keyboard.press("Escape"); await expect(auth).not.toBeVisible(); await expect(settings).toBeVisible();
   await page.keyboard.press("Escape"); await expect(settings).not.toBeVisible(); await expect(trigger).toBeFocused();
 });
