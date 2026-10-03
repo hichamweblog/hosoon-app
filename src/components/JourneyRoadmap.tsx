@@ -32,19 +32,18 @@ export default function JourneyRoadmap({ memorized, currentDay }: { memorized: n
         })}
       </div>
     </div>
-    <div className="grid grid-cols-4 gap-px bg-border/60 sm:grid-cols-5" dir="rtl">
+    <div className="grid grid-cols-2 gap-px bg-border/60 sm:grid-cols-5" dir="rtl">
       {Array.from({ length: rangeEnd - rangeStart + 1 }, (_, i) => i + rangeStart).map((hizb) => {
         const ids = Array.from({ length: 8 }, (_, index) => (hizb - 1) * 8 + index + 1);
         const count = ids.filter((id) => known.has(id)).length;
         const active = ids.includes(currentDay);
-        return <article key={hizb} className={`group min-h-[88px] p-2 text-right transition-colors ${count === 8 ? "bg-primary text-primary-foreground" : `bg-card ${active ? "border-2 border-primary" : "border border-transparent"}`}`}>
-          <button type="button" aria-label={`معاينة الحزب ${hizb}، ${count} من 8 أثمان محفوظة${count === 8 ? "، مكتمل" : ""}`} className="w-full text-right focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" onClick={() => setSelected(ids.find((id) => !known.has(id)) ?? ids[0])}>
-            <span className="flex items-center justify-between gap-1"><span className={`text-sm font-bold ${active && count !== 8 ? "text-primary" : ""}`}>{formatNum(hizb, arabic)}</span>{active && <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${count === 8 ? "bg-primary-foreground text-primary" : "bg-primary text-primary-foreground"}`}>اليوم</span>}</span>
+        return <article key={hizb} className={`group p-2 text-right transition-colors ${count === 8 ? "bg-primary text-primary-foreground" : `bg-card ${active ? "border-2 border-primary" : "border border-transparent"}`}`}>
+          <button type="button" aria-label={`معاينة الحزب ${hizb}، ${count} من 8 أثمان محفوظة${count === 8 ? "، مكتمل" : ""}${active ? "، المحطة الحالية" : ""}`} aria-current={active ? "step" : undefined} className="w-full text-right focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" onClick={() => setSelected(ids.find((id) => !known.has(id)) ?? ids[0])}>
+            <span className="flex items-center justify-between gap-1"><span className={`text-sm font-bold ${active && count !== 8 ? "text-primary" : ""}`}>{formatNum(hizb, arabic)}</span><span className={`text-[11px] ${count === 8 ? "text-primary-foreground/85" : "text-muted-foreground"}`}>{formatNum(count, arabic)}/{formatNum(8, arabic)} محفوظ</span></span>
           </button>
-          <span className="mt-3 grid grid-cols-4 gap-1" aria-label={`أثمان الحزب ${hizb}`}>
-            {ids.map((id) => <button key={id} type="button" aria-label={`فتح الثمن ${id}`} onClick={() => openReader(id)} className={`aspect-square rounded-full border transition-transform hover:scale-125 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${known.has(id) ? count === 8 ? "border-primary-foreground bg-primary-foreground" : "border-primary bg-primary" : count === 8 ? "border-primary-foreground/60 bg-transparent" : "border-muted-foreground/30 bg-transparent"}`} />)}
+          <span className="mt-1 grid grid-cols-4 gap-1" aria-label={`أثمان الحزب ${hizb}`}>
+            {ids.map((id) => <button key={id} type="button" aria-label={`فتح الثمن ${id}`} onClick={() => openReader(id)} className={`grid size-8 place-items-center rounded-full border text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${known.has(id) ? count === 8 ? "border-primary-foreground bg-primary-foreground text-primary" : "border-primary bg-primary text-primary-foreground" : count === 8 ? "border-primary-foreground/60 bg-transparent" : "border-muted-foreground/30 bg-transparent text-muted-foreground"}`}>{formatNum(id, arabic)}</button>)}
           </span>
-          <span className={`mt-2 block text-[11px] ${count === 8 ? "text-primary-foreground" : "text-muted-foreground"}`}>{formatNum(count, arabic)}/8 محفوظ</span>
         </article>;
       })}
     </div>

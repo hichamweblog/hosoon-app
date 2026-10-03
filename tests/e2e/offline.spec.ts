@@ -9,6 +9,7 @@ test("offline cold reopening: الهيكل والمحفوظ والصورة ال�
   const later = page.getByRole("button", { name: "لاحقًا", exact: true }); if (await later.isVisible()) await later.click();
   await page.getByRole("button", { name: "فتح المصحف الشريف" }).click(); await modal(page, "المصحف — الثمن 1");
   await expect.poll(() => page.locator("img[alt*='صورة صفحة']").evaluate((node) => (node as HTMLImageElement).complete && (node as HTMLImageElement).naturalWidth > 0)).toBe(true);
+  await page.locator('[aria-label^="صفحة المصحف"]').click({ position: { x: 100, y: 100 } });
   await page.getByRole("button", { name: "تنزيل صفحات هذا الثمن" }).click();
   await expect.poll(() => page.evaluate(async () => (await (await caches.open("hosoon-mushaf-v1")).keys()).length)).toBeGreaterThanOrEqual(2);
   await page.getByRole("button", { name: "إغلاق القارئ" }).click(); await page.getByRole("checkbox", { name: "تم تلاوة الجزء" }).click();

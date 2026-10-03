@@ -6,17 +6,17 @@ test("تهيئة ثلاث خطوات دون إذن تلقائي، والتصري
   await page.goto("/"); await expect(page.getByRole("heading", { name: "رحلة هادئة مع القرآن" })).toBeVisible(); await page.getByRole("button", { name: "التالي", exact: true }).click();
   await page.getByLabel("عدد الأثمان المحفوظة من البداية").fill("60"); await page.getByRole("button", { name: "التالي", exact: true }).click(); await page.getByRole("button", { name: "ابدأ وردي" }).click();
   await expect(page.getByRole("heading", { name: "وردك اليوم" })).toBeVisible(); const data = await readProgress(page);
-  expect(Object.values(data.memorization).filter((m) => m.memorized)).toHaveLength(60); expect(data.currentDay).toBe(61); expect(data.totalXp).toBe(0); expect(data.streak).toBe(0); expect(data.completions).toEqual({});
+  expect(Object.values(data.memorization).filter((m) => m.memorized)).toHaveLength(60); expect(data.currentDay).toBe(61); expect(data.streak).toBe(0); expect(data.completions).toEqual({});
   expect(await page.evaluate(() => (window as unknown as { permissionPrompts: number }).permissionPrompts)).toBe(0);
 });
 
-test("4/4 = 100% و110 XP، ثم إعادة الفتح تبقي الإنجاز", async ({ page }) => {
+test("4/4 = 100%، ثم إعادة الفتح تبقي الإنجاز", async ({ page }) => {
   await seed(page); await open(page);
   await expect(page.getByRole("button", { name: "ابدأ التلاوة", exact: true })).toBeInViewport();
   const boxes = page.getByRole("checkbox"); expect(await boxes.count()).toBe(4);
   for (let i = 0; i < 4; i++) await boxes.nth(i).click();
-  await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "4"); expect((await readProgress(page)).totalXp).toBe(110);
-  await page.reload(); await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "4"); expect((await readProgress(page)).totalXp).toBe(110);
+  await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "4");
+  await page.reload(); await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "4");
 });
 
 test("جلسة → مصحف → Back يحفظ المؤقت والقفل، ثم تأكيد المغادرة", async ({ page }) => {
@@ -28,10 +28,10 @@ test("جلسة → مصحف → Back يحفظ المؤقت والقفل، ثم �
   expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).toMatch(/hidden|clip/);
   await page.evaluate(() => history.back()); const confirm = await modal(page, "إنهاء الجلسة؟"); await confirm.getByRole("button", { name: "احفظ الوقت وأنهِ" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0); expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).not.toMatch(/hidden|clip/);
-  const data = await readProgress(page); expect(Object.values(data.sessions)).toHaveLength(1); expect(Object.values(data.sessions)[0].seconds).toBeGreaterThanOrEqual(5); expect(data.totalXp).toBe(0);
+  const data = await readProgress(page); expect(Object.values(data.sessions)).toHaveLength(1); expect(Object.values(data.sessions)[0].seconds).toBeGreaterThanOrEqual(5);
 });
 
-test("معاينة مستقبلية لا تمنح XP أو تقييمًا، والبحث ٢/2/۲ متساوٍ", async ({ page }) => {
+test("المعاينة المستقبلية لا تسجل تقييمًا، والبحث ٢/2/۲ متساوٍ", async ({ page }) => {
   await seed(page); await open(page); await page.getByRole("button", { name: "الخطة", exact: true }).click(); await page.getByRole("button", { name: "فتح بحث الأثمان" }).click();
   const search = page.getByRole("searchbox", { name: "البحث في خطة الأثمان" });
   for (const number of ["٢", "2", "۲"]) { await search.fill(number); await expect(page.getByRole("button", { name: "قراءة الثمن 2", exact: true })).toBeVisible(); expect(await page.getByRole("button", { name: "قراءة الثمن 2", exact: true }).count()).toBe(1); }
@@ -39,13 +39,13 @@ test("معاينة مستقبلية لا تمنح XP أو تقييمًا، وا�
   await expect(page.getByRole("dialog", { name: /المصحف/ })).toBeVisible();
   await page.locator('[aria-label^="صفحة المصحف"]').click({ position: { x: 100, y: 100 } });
   await page.getByRole("button", { name: "إغلاق القارئ" }).click();
-  expect((await readProgress(page)).totalXp).toBe(0); expect((await readProgress(page)).thumunRatings).toEqual({});
+  expect((await readProgress(page)).thumunRatings).toEqual({});
 });
 
 test("تثبيت ثمن ضعيف واحد لا يكمل 16 ثمن مراجعة بعيد", async ({ page }) => {
   const data = guest(24); data.thumunRatings[1] = "weak"; await seed(page, data); await open(page); await page.getByRole("button", { name: "المراجعة", exact: true }).click();
   await page.getByRole("button", { name: "ثبّت هذا الثمن", exact: true }).first().click(); const dialog = await modal(page, "تثبيت حر"); await dialog.getByRole("button", { name: "ضعيف", exact: true }).click(); await dialog.getByRole("button", { name: "حفظ التثبيت الحر", exact: true }).click();
-  const saved = await readProgress(page); expect(saved.thumunRatings[1]).toBe("weak"); expect(Object.keys(saved.reviewAttempts)).toHaveLength(1); expect(saved.totalXp).toBe(0); expect(Object.values(saved.completions).some((c) => c.task === "review_far" && c.done)).toBe(false);
+  const saved = await readProgress(page); expect(saved.thumunRatings[1]).toBe("weak"); expect(Object.keys(saved.reviewAttempts)).toHaveLength(1); expect(Object.values(saved.completions).some((c) => c.task === "review_far" && c.done)).toBe(false);
 });
 
 test("نسخة مشوهة لا تستبدل الحالة، وround-trip صالح مع نسخة رجوع", async ({ page }) => {

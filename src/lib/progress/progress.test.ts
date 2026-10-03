@@ -21,22 +21,22 @@ function learned(id: number, device: string, clock = 10): ProgressData {
   return deriveProgress(data);
 }
 describe("دمج سجل فريد قابل للتراجع ومتقارب", () => {
-  it("ثمنان من جهازين 50 + 50 = 100، لا max(50,50)", () => {
+  it("ثمنان من جهازين يندمجان دون فقد المحفوظ", () => {
     const a = learned(1, "a"), b = learned(2, "b"); const merged = mergeProgress(a, b);
-    expect(merged.totalXp).toBe(100); expect(progressMetrics(merged).ids).toEqual([1, 2]); expect(Object.keys(merged.completions)).toHaveLength(2);
+    expect(progressMetrics(merged).ids).toEqual([1, 2]); expect(Object.keys(merged.completions)).toHaveLength(2);
   });
   it("commutative / associative / idempotent حتى مع خطط متزامنة مختلفة", () => {
     const a = learned(1, "a", 10), b = learned(2, "b", 20), c = learned(3, "c", 30);
     expect(canonicalStringify(mergeProgress(a, b))).toBe(canonicalStringify(mergeProgress(b, a)));
     expect(canonicalStringify(mergeProgress(mergeProgress(a, b), c))).toBe(canonicalStringify(mergeProgress(a, mergeProgress(b, c))));
     const merged = mergeProgress(mergeProgress(a, b), c); expect(canonicalStringify(mergeProgress(merged, merged))).toBe(canonicalStringify(merged));
-    expect(Object.keys(merged.completions)).toHaveLength(3); expect(merged.totalXp).toBe(150); parseProgress(merged);
+    expect(Object.keys(merged.completions)).toHaveLength(3); parseProgress(merged);
   });
   it("تناقض علامة الإنجاز يفوز فيه التراجع الأحدث، وليس OR", () => {
     const a = learned(1, "a"), b = structuredClone(a), id = Object.keys(b.completions)[0];
     b.completions[id] = { ...b.completions[id], done: false, stamp: stamp(99, "b") };
     b.memorization[1] = { ...b.memorization[1], memorized: false, stamp: stamp(99, "b") };
-    expect(mergeProgress(a, b).totalXp).toBe(0); expect(mergeProgress(b, a).memorization[1].memorized).toBe(false);
+    expect(mergeProgress(b, a).memorization[1].memorized).toBe(false);
   });
   it("ملاحظة أحدث وفقد التقييم/المسودة لا يعودان من جهاز قديم", () => {
     const a = emptyProgress(owner, now), b = structuredClone(a);
@@ -68,10 +68,17 @@ describe("دمج سجل فريد قابل للتراجع ومتقارب", () => 
   });
 });
 describe("ترحيل وحقائق دون اختلاق", () => {
+  it("يزيل حقول XP من لقطة v4 دون فقد بقية التقدم", () => {
+    const old = { ...emptyProgress(), schemaVersion: 4 as const, legacyXp: 99, totalXp: 120 };
+    const migrated = migrateProgress(old, 4);
+    expect(migrated.schemaVersion).toBe(5);
+    expect("legacyXp" in migrated).toBe(false);
+    expect("totalXp" in migrated).toBe(false);
+  });
   it("الجلسات القديمة معرفاتها مستقرة، المسودات باقية والنص المعتمد ثابت", () => {
     const old = { currentDay: 2, totalXp: 50, startDate: now.toISOString(), completedTasks: { 1: { new_hifz: true } }, notes: { 1: "note" }, editedThumuns: { 1: { text: "changed", startAya: 3 } }, sessionLog: { [date]: [{ day: 1, task: "new_hifz", seconds: 60, at: now.toISOString() }] } };
     const a = migrateProgress(old), b = migrateProgress(old);
-    expect(Object.keys(a.sessions)).toEqual(Object.keys(b.sessions)); expect(mergeProgress(a, b).totalXp).toBe(50); expect(a.editedThumuns[1].text).toBe("changed");
+    expect(Object.keys(a.sessions)).toEqual(Object.keys(b.sessions)); expect(a.editedThumuns[1].text).toBe("changed");
     expect(getThumun(1, a.editedThumuns)?.text).not.toBe("changed"); expect(Object.isFrozen(getThumun(1))).toBe(true);
     expect(a.dailyPlans).toEqual({}); expect(progressMetrics(a).perfectDays).toBe(0);
   });
@@ -83,7 +90,7 @@ describe("ترحيل وحقائق دون اختلاق", () => {
     const data = emptyProgress(); for (const id of [1, 3, 5, 7, 9, 11, 13, 105]) data.memorization[id] = { memorized: true, source: "prior", at: now.toISOString(), stamp: stamp(1) };
     expect(progressMetrics(data).hizbs).toEqual([]); expect(progressMetrics(data).zahrawayn).toBe(false);
     const badge = SPECIAL_ACHIEVEMENTS.find((i) => i.id === "baqarah_imran")!;
-    expect(badge.check({ bestStreak: 0, perfectDays: 0, totalXp: 0, highestDay: 105, zahrawayn: false, sessionMinutes: 0 })).toBe(false);
+    expect(badge.check({ bestStreak: 0, perfectDays: 0, highestDay: 105, zahrawayn: false, sessionMinutes: 0 })).toBe(false);
     for (let id = 1; id <= 60; id++) data.memorization[id] = { memorized: true, source: "prior", at: now.toISOString(), stamp: stamp(2) };
     expect(progressMetrics(data).zahrawayn).toBe(true);
   });

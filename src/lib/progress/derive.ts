@@ -1,4 +1,3 @@
-import { XP_TABLE } from "@/lib/constants";
 import { daysBetweenLocal, localDateKey } from "@/lib/format";
 import { compareStamps } from "./clock";
 import { isDayCompleted, memorizedIds, tasksForPlan, materialIds } from "./plan";
@@ -9,10 +8,10 @@ export function emptyProgress(ownerId: string | null = null, now = new Date()): 
     schemaVersion: PROGRESS_VERSION, ownerId, epoch: 0, currentDay: 1,
     startDate: now.toISOString(), calendarStartDate: localDateKey(now), memorization: {},
     dailyPlans: {}, completions: {}, sessions: {}, reviewAttempts: {}, versions: {},
-    legacyDailyLog: {}, legacyXp: 0, notes: {}, thumunRatings: {}, editedThumuns: {},
+    legacyDailyLog: {}, notes: {}, thumunRatings: {}, editedThumuns: {},
     settings: { ...DEFAULT_SETTINGS }, maintain: { active: false, day: 1, startedOn: null, cycleOffset: 0 },
     khatmaCompletedAt: null, celebrationSeenAt: null, showOnboarding: ownerId === null,
-    completedTasks: {}, dailyLog: {}, sessionLog: {}, totalXp: 0, streak: 0,
+    completedTasks: {}, dailyLog: {}, sessionLog: {}, streak: 0,
     bestStreak: 0, lastActiveDate: "",
   };
 }
@@ -20,7 +19,6 @@ export function emptyProgress(ownerId: string | null = null, now = new Date()): 
 /** Pure derived views. Never merge counters or award a second copy of an event. */
 export function deriveProgress(data: ProgressData, today = localDateKey()): ProgressData {
   const completedTasks: ProgressData["completedTasks"] = {};
-  let totalXp = data.legacyXp;
   const dailyLog: Record<string, DailyLogEntry> = Object.fromEntries(
     Object.entries(data.legacyDailyLog).map(([date, log]) => [date, { ...log, days: [...log.days], completedAll: false }]),
   );
@@ -29,7 +27,6 @@ export function deriveProgress(data: ProgressData, today = localDateKey()): Prog
     const applicable = !c.legacy && !!c.date && c.date <= today && plan?.id === c.planId && plan?.journeyDay === c.day && plan.taskKeys.includes(c.task) && materialIds(plan, c.task).join(",") === c.materialIds.join(",");
     if (c.done && (c.legacy || applicable)) {
       completedTasks[c.day] = { ...completedTasks[c.day], [c.task]: true };
-      if (!c.legacy && c.task !== "new_hifz") totalXp += XP_TABLE[c.task];
     }
     if (c.date && applicable && c.done) {
       const entry = dailyLog[c.date] ?? { date: c.date, days: [], tasks: 0 };
@@ -40,10 +37,8 @@ export function deriveProgress(data: ProgressData, today = localDateKey()): Prog
     }
   }
   const ids = memorizedIds(data);
-  for (const m of Object.values(data.memorization)) if (m.memorized && m.source === "learned" && localDateKey(new Date(m.at)) <= today) totalXp += XP_TABLE.new_hifz;
   for (const plan of Object.values(data.dailyPlans)) {
     const complete = plan.date <= today && isDayCompleted(tasksForPlan(data, plan), plan.taskKeys);
-    if (complete) totalXp += XP_TABLE.day_bonus;
     if (dailyLog[plan.date]) dailyLog[plan.date].completedAll = complete;
   }
   const sessionLog: Record<string, SessionEntry[]> = {};
@@ -72,7 +67,7 @@ export function deriveProgress(data: ProgressData, today = localDateKey()): Prog
   const maintainDay = data.maintain.active && data.maintain.startedOn
     ? Math.max(1, daysBetweenLocal(data.maintain.startedOn, today) + 1 + data.maintain.cycleOffset) : data.maintain.day;
   return {
-    ...data, completedTasks, dailyLog, sessionLog, totalXp, streak, bestStreak: Math.max(best, streak),
+    ...data, completedTasks, dailyLog, sessionLog, streak, bestStreak: Math.max(best, streak),
     lastActiveDate: last, khatmaCompletedAt, maintain: { ...data.maintain, day: maintainDay },
   };
 }

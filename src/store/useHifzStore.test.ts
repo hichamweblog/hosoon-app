@@ -26,23 +26,23 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-describe("الإتمام والمحفوظ والنقاط: رصيد مشتق لا عدّادات متراكمة", () => {
-  it("أول يوم 4/4: 85 نقاط المهام + 25 مكافأة، ويوم مؤرخ مكتمل", () => {
+describe("الإتمام والمحفوظ وسجل النشاط", () => {
+  it("أول يوم 4/4 يسجل يومًا مؤرخًا مكتملًا", () => {
     const plan = onboard(); expect(plan.taskKeys).toHaveLength(4);
     const data = completeToday(); expect(isDayCompleted(tasksForPlan(data, plan), plan.taskKeys)).toBe(true);
-    expect(data.totalXp).toBe(110); expect(progressMetrics(data).perfectDays).toBe(1); expect(progressMetrics(data).count).toBe(1);
+    expect(progressMetrics(data).perfectDays).toBe(1); expect(progressMetrics(data).count).toBe(1);
   });
-  it.each([[1, 5, 130], [8, 5, 130], [9, 6, 150], [478, 6, 150], [479, 5, 140]])("بعد %i ثمن سابق: %i مهام ونقاط %i", (prior, keys, xp) => {
+  it.each([[1, 5], [8, 5], [9, 6], [478, 6], [479, 5]])("بعد %i ثمن سابق: %i مهام", (prior, keys) => {
     const plan = onboard(prior); expect(plan.taskKeys).toHaveLength(keys);
-    const data = completeToday(); expect(data.totalXp).toBe(xp); expect(progressMetrics(data).perfectDays).toBe(1);
+    const data = completeToday(); expect(progressMetrics(data).perfectDays).toBe(1);
   });
-  it("إعادة علامة الحفظ لا تستزرع نقاطًا أو سجل مهام أو نشاطًا مضاعفًا", () => {
+  it("إعادة علامة الحفظ لا تكرر سجل المهام أو النشاط", () => {
     const p = onboard(); const task = "new_hifz";
-    useHifzStore.getState().toggleTask(1, task); expect(useHifzStore.getState().totalXp).toBe(50);
+    useHifzStore.getState().toggleTask(1, task);
     expect(useHifzStore.getState().streak).toBe(1); expect(useHifzStore.getState().bestStreak).toBe(1);
-    useHifzStore.getState().toggleTask(1, task); expect(useHifzStore.getState().totalXp).toBe(0);
+    useHifzStore.getState().toggleTask(1, task);
     useHifzStore.getState().toggleTask(1, task); const data = useHifzStore.getState();
-    expect(data.totalXp).toBe(50); expect(data.dailyLog[localDateKey()].tasks).toBe(1);
+    expect(data.dailyLog[localDateKey()].tasks).toBe(1);
     expect(Object.keys(data.completions)).toEqual([completionId(p.date, task, p.id)]); expect(data.streak).toBe(1);
   });
   it("الاستماع في المحطة 16 لا يصنع حفظ جزء أو حزب", () => {
@@ -50,15 +50,15 @@ describe("الإتمام والمحفوظ والنقاط: رصيد مشتق لا
     useHifzStore.getState().completeTask(16, "khatma_listen");
     expect(progressMetrics(useHifzStore.getState())).toMatchObject({ count: 0, juzs: [], hizbs: [] });
   });
-  it("محفوظ سابق، حتى غير المتصل: لا حصون تاريخية ولا XP أو نشاط", () => {
+  it("محفوظ سابق، حتى غير المتصل: لا حصون تاريخية ولا نشاط", () => {
     useHifzStore.getState().completeOnboarding({ memorizedIds: [1, 3, 477] }); const data = useHifzStore.getState();
     expect(progressMetrics(data).ids).toEqual([1, 3, 477]); expect(data.currentDay).toBe(2);
-    expect(data.completedTasks).toEqual({}); expect(data.totalXp).toBe(0); expect(data.streak).toBe(0);
+    expect(data.completedTasks).toEqual({}); expect(data.streak).toBe(0);
     expect(data.dailyLog).toEqual({});
   });
-  it("تكرار تصريح النطاق لا يكرر النقاط", () => {
+  it("تكرار تصريح النطاق لا يكرر السجلات", () => {
     useHifzStore.getState().markRangeComplete(40); useHifzStore.getState().markRangeComplete(40);
-    expect(useHifzStore.getState().totalXp).toBe(0); expect(progressMetrics(useHifzStore.getState()).count).toBe(40);
+    expect(progressMetrics(useHifzStore.getState()).count).toBe(40);
   });
   it("الانتقال مشروط بإتقان المحطة، لا بإتمام القراءة أو الضغط فقط", () => {
     onboard(); useHifzStore.getState().advanceDay(); expect(useHifzStore.getState().currentDay).toBe(1);
@@ -93,7 +93,7 @@ describe("خطط مستقلة مؤرخة وثابتة", () => {
   it("اليوم للمراجعة يؤجل الجديد فقط ولا يسجل تقدمًا وهميًا", () => {
     onboard(); expect(useHifzStore.getState().setReviewOnlyToday(true)).toBe(true);
     const p = useHifzStore.getState().dailyPlans[localDateKey()]; expect(p.newHifzId).toBeNull(); expect(p.taskKeys).not.toContain("new_hifz");
-    const data = completeToday(); expect(progressMetrics(data).count).toBe(0); expect(data.currentDay).toBe(1); expect(data.totalXp).toBe(60);
+    const data = completeToday(); expect(progressMetrics(data).count).toBe(0); expect(data.currentDay).toBe(1);
   });
   it("التثبيت دورة مستقلة: اليوم 1 ثم 2 دون لمس إتقان 480", () => {
     useHifzStore.getState().completeOnboarding({ startAtDay: 480 }); useHifzStore.getState().startMaintainMode(); useHifzStore.getState().ensureTodayPlan();
@@ -114,25 +114,24 @@ describe("حواجز المعاينة والتقييم الفردي", () => {
     onboard(24); useSessionStore.getState().open({ kind: "free_review", day: 25, thumuns: [getThumun(1)!] }); const p = useSessionStore.getState().payload!;
     expect(useHifzStore.getState().recordReviewAttempt(1, "weak", p.id)).toBe(true); useHifzStore.getState().finishSession(p, 90);
     const data = useHifzStore.getState(); expect(data.thumunRatings[1]).toBe("weak"); expect(Object.keys(data.thumunRatings)).toEqual(["1"]);
-    expect(tasksForPlan(data, data.dailyPlans[localDateKey()]).review_far).toBe(false); expect(data.totalXp).toBe(0); expect(Object.keys(data.sessions)).toHaveLength(1);
+    expect(tasksForPlan(data, data.dailyPlans[localDateKey()]).review_far).toBe(false); expect(Object.keys(data.sessions)).toHaveLength(1);
   });
   it("لا تكمل جلسة بعيد إن كانت المادة جزءًا من الخطة فقط", () => {
     onboard(24); useSessionStore.getState().open({ kind: "review_far", day: 25, thumuns: [getThumun(1)!] }); const p = useSessionStore.getState().payload!;
     useHifzStore.getState().recordReviewAttempt(1, "good", p.id); expect(useHifzStore.getState().finishSession(p, 60)).toBe(false);
-    expect(useHifzStore.getState().totalXp).toBe(0);
   });
   it("كل مادة مراجعة فردية تُقيّم قبل اعتماد المهمة الكاملة", () => {
     const plan = onboard(24); const list = plan.farIds.map((id) => getThumun(id)!);
     useSessionStore.getState().open({ kind: "review_far", day: 25, thumuns: list }); const p = useSessionStore.getState().payload!;
     expect(useHifzStore.getState().finishSession(p, 60)).toBe(false);
     for (const t of list) useHifzStore.getState().recordReviewAttempt(t.id, t.id === 1 ? "weak" : "good", p.id);
-    expect(useHifzStore.getState().finishSession(p, 60)).toBe(true); expect(useHifzStore.getState().totalXp).toBe(20);
-    useHifzStore.getState().finishSession(p, 60); expect(useHifzStore.getState().totalXp).toBe(20); expect(Object.keys(useHifzStore.getState().sessions)).toHaveLength(1);
+    expect(useHifzStore.getState().finishSession(p, 60)).toBe(true);
+    useHifzStore.getState().finishSession(p, 60); expect(Object.keys(useHifzStore.getState().sessions)).toHaveLength(1);
   });
   it("المعاينة المستقبلية تحفظ الوقت فقط، دون إتقان أو XP", () => {
     onboard(); useSessionStore.getState().open({ kind: "new_hifz", day: 7, thumuns: [getThumun(7)!] }); const p = useSessionStore.getState().payload!;
     expect(p.preview).toBe(true); expect(useHifzStore.getState().finishSession(p, 60)).toBe(false);
-    expect(useHifzStore.getState().memorization[7]).toBeUndefined(); expect(useHifzStore.getState().totalXp).toBe(0);
+    expect(useHifzStore.getState().memorization[7]).toBeUndefined();
   });
   it("سجل جلسة مغادرة مؤقت يمكن إنهاؤه دون مضاعفة الهوية أو الوقت", () => {
     onboard(); const store = useHifzStore.getState(); store.logSession("free_review", 1, 30, { id: "session-1", abandoned: true }); store.logSession("free_review", 1, 90, { id: "session-1" }); store.logSession("free_review", 1, 90, { id: "session-1" });

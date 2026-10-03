@@ -39,7 +39,6 @@ export function mergeProgress(local: ProgressData, remote: ProgressData): Progre
   }
   out.startDate = local.startDate < remote.startDate ? local.startDate : remote.startDate;
   out.calendarStartDate = local.calendarStartDate < remote.calendarStartDate ? local.calendarStartDate : remote.calendarStartDate;
-  out.legacyXp = Math.max(local.legacyXp, remote.legacyXp); // One documented, imported adjustment.
   out.bestStreak = Math.max(local.bestStreak, remote.bestStreak);
   out.khatmaCompletedAt = [local.khatmaCompletedAt, remote.khatmaCompletedAt].filter((v): v is string => !!v).sort()[0] ?? null;
   out.memorization = records(local.memorization, remote.memorization);

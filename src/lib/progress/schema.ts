@@ -97,7 +97,7 @@ export const progressSchema = z.object({
     if (["note", "rating", "draft"].includes(parts[0])) return thumunKey.safeParse(parts[1]).success && parts.length === 2;
     if (parts[0] === "setting") return Object.keys(settingsSchema.shape).includes(parts[1]) && parts.length === 2;
     return false;
-  }, "معرف إصدار غير معروف"), stampSchema), legacyDailyLog: record(date, logEntry), legacyXp: integer,
+  }, "معرف إصدار غير معروف"), stampSchema), legacyDailyLog: record(date, logEntry),
   notes: record(thumunKey, z.string().max(10000), 480),
   thumunRatings: record(thumunKey, z.enum(["weak", "good", "strong"]), 480),
   // Old personal edits are archival drafts. Their original JSON is also in the rollback backup.
@@ -110,7 +110,7 @@ export const progressSchema = z.object({
   maintain: z.object({ active: z.boolean(), day: integer.min(1), startedOn: date.nullable(), cycleOffset: integer }).strict(),
   khatmaCompletedAt: iso.nullable(), celebrationSeenAt: iso.nullable(), showOnboarding: z.boolean(),
   completedTasks: record(thumunKey, dailyTasks, 480), dailyLog: record(date, logEntry),
-  sessionLog: record(date, z.array(session).max(10000)), totalXp: integer, streak: integer,
+  sessionLog: record(date, z.array(session).max(10000)), streak: integer,
   bestStreak: integer, lastActiveDate: date.or(z.literal("")),
 }).strict().superRefine((p, ctx) => {
   for (const [k, v] of Object.entries(p.dailyPlans)) if (k !== v.date)

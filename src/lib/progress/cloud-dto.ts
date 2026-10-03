@@ -21,7 +21,7 @@ export function decodeCloudRow(value: unknown, owner: string): CloudRecord {
   } else {
     snapshot = migrateProgress({
       currentDay: row.current_day, startDate: row.created_at, streak: row.streak,
-      bestStreak: row.best_streak, totalXp: row.total_xp, completedTasks: row.completed_tasks,
+      bestStreak: row.best_streak, completedTasks: row.completed_tasks,
       dailyLog: row.daily_log, sessionLog: row.session_log, notes: row.notes,
       thumunRatings: row.thumun_ratings, editedThumuns: row.edited_thumuns,
       khatmaCompletedAt: row.khatma_completed_at, maintain: row.maintain, settings: row.settings,

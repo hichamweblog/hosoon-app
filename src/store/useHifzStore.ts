@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { XP_TABLE, type TaskType } from "@/lib/constants";
+import { type TaskType } from "@/lib/constants";
 import { localDateKey } from "@/lib/format";
 import { newId, nextStamp } from "@/lib/progress/clock";
 import { deriveProgress, emptyProgress } from "@/lib/progress/derive";
@@ -68,7 +68,6 @@ function setTask(data: ProgressData, day: number, task: TaskType, done: boolean,
   const completions = { ...base.completions, [id]: {
     id, planId: plan.id, task, day, date, done, materialIds: expected, legacy: false, stamp,
   } };
-  const xp = done && !before?.done ? XP_TABLE[task] : 0;
   const memorization = { ...base.memorization };
   if (task === "new_hifz" && plan.newHifzId) {
     const prior = memorization[plan.newHifzId];
@@ -77,7 +76,7 @@ function setTask(data: ProgressData, day: number, task: TaskType, done: boolean,
       at: new Date().toISOString(), stamp,
     };
   }
-  return deriveProgress({ ...base, completions, memorization, totalXp: base.totalXp + xp, versions: done ? activity(base, stamp, date) : base.versions });
+  return deriveProgress({ ...base, completions, memorization, versions: done ? activity(base, stamp, date) : base.versions });
 }
 
 export const useHifzStore = create<HifzState>()(persist((set, get) => {
@@ -131,7 +130,7 @@ export const useHifzStore = create<HifzState>()(persist((set, get) => {
           if (completion.task === "new_hifz" && (completion.materialIds.includes(id) || completion.day === id))
             completions[key] = { ...completion, done: false, stamp };
         }
-        // Declaration/restoration is not a learning activity or an XP grant.
+        // Declaration/restoration is not a learning activity.
         return { ...data, memorization, completions };
       });
     },

@@ -1,4 +1,4 @@
-// Task metadata & XP economy (single source of truth).
+// Task metadata (single source of truth).
 
 export type TaskType =
   | "khatma_recite"
@@ -9,18 +9,6 @@ export type TaskType =
   | "review_far"
   | "maintain_recite"
   | "free_review";
-
-export const XP_TABLE: Record<TaskType | "day_bonus", number> = {
-  khatma_recite: 15,
-  khatma_listen: 10,
-  prep_weekly: 10,
-  new_hifz: 50,
-  review_near: 20,
-  review_far: 20,
-  maintain_recite: 15,
-  free_review: 0,
-  day_bonus: 25,
-};
 
 export interface TaskMeta {
   label: string;
@@ -118,11 +106,10 @@ export interface Achievement {
   id: string;
   label: string;
   description: string;
-  icon: "flame" | "shield" | "castle" | "hammer" | "coins" | "sparkles" | "flower" | "clock";
+  icon: "flame" | "shield" | "castle" | "hammer" | "flower" | "clock";
   check: (s: {
     bestStreak: number;
     perfectDays: number;
-    totalXp: number;
     highestDay: number;
     zahrawayn: boolean;
     sessionMinutes: number;
@@ -164,20 +151,6 @@ export const SPECIAL_ACHIEVEMENTS: Achievement[] = [
     description: "إتمام 50 يوماً مثالياً",
     icon: "castle",
     check: (s) => s.perfectDays >= 50,
-  },
-  {
-    id: "xp_1000",
-    label: "جامع الغنائم",
-    description: "جمع 1,000 نقطة خبرة",
-    icon: "coins",
-    check: (s) => s.totalXp >= 1000,
-  },
-  {
-    id: "xp_10000",
-    label: "صاحب الألفيات",
-    description: "جمع 10,000 نقطة خبرة",
-    icon: "sparkles",
-    check: (s) => s.totalXp >= 10000,
   },
   {
     id: "baqarah_imran",

@@ -8,7 +8,6 @@ import {
   hizbThumunRange,
   juzThumunRange,
 } from "@/lib/fortress-calculator";
-import { XP_TABLE, type TaskType } from "@/lib/constants";
 import { getThumun, TOTAL_THUMUNS } from "@/lib/quran-data";
 
 describe("بنية الأثمان (المصاحف المغاربية)", () => {
@@ -107,10 +106,4 @@ describe("مُحوِّل الحصون الخمسة", () => {
     expect(t2.taskKeys).toEqual(["maintain_recite"]); // weak extras are free review, never required reviews
   });
 
-  it("كل مهمة في taskKeys لها قيمة XP", () => {
-    const t = getFortressTasks(25);
-    for (const key of t.taskKeys) {
-      expect(XP_TABLE[key as TaskType]).toBeGreaterThan(0);
-    }
-  });
 });

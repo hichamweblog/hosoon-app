@@ -44,6 +44,12 @@ const legacySchema = z.object({
 export function migrateProgress(value: unknown, version = 3, ownerId: string | null = null): ProgressData {
   ensureSafeJson(value);
   if (version === PROGRESS_VERSION) return parseProgress(value);
+  if (version === 4 && value && typeof value === "object" && !Array.isArray(value)) {
+    const withoutXp = { ...(value as Record<string, unknown>) };
+    delete withoutXp.legacyXp;
+    delete withoutXp.totalXp;
+    return parseProgress({ ...withoutXp, schemaVersion: PROGRESS_VERSION });
+  }
   if (!Number.isInteger(version) || version < 0 || version > PROGRESS_VERSION)
     throw new Error("إصدار بيانات غير مدعوم — حدّث التطبيق");
   const result = legacySchema.safeParse(value);
@@ -56,7 +62,6 @@ export function migrateProgress(value: unknown, version = 3, ownerId: string | n
   out.notes = old.notes ?? {};
   out.thumunRatings = old.thumunRatings ?? {};
   out.editedThumuns = old.editedThumuns ?? {};
-  out.legacyXp = old.totalXp ?? 0;
   out.bestStreak = Math.max(old.bestStreak ?? 0, old.streak ?? 0);
   out.showOnboarding = old.showOnboarding ?? false;
   out.settings = { ...out.settings, ...old.settings };

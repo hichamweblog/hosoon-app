@@ -11,7 +11,7 @@ beforeEach(() => {
 });
 describe("Zustand persist حقيقي مضبوط وتحقق حتى عند تطابق الإصدار", () => {
   it("يحمل hifz-storage v3 إلى مساحة الضيف مع أصل رجوع وبقاء الأفعال", async () => {
-    testStorage.removeItem(storageKey(null)); const original = JSON.stringify({ version: 3, state: { currentDay: 2, completedTasks: { 1: { new_hifz: true } }, totalXp: 50, notes: { 1: "keep" }, editedThumuns: { 1: { text: "old draft" } } } }); testStorage.setItem("hifz-storage", original);
+    testStorage.removeItem(storageKey(null)); const original = JSON.stringify({ version: 3, state: { currentDay: 2, completedTasks: { 1: { new_hifz: true } }, notes: { 1: "keep" }, editedThumuns: { 1: { text: "old draft" } } } }); testStorage.setItem("hifz-storage", original);
     const action = useHifzStore.getState().setNote; await useHifzStore.persist.rehydrate();
     expect(useHifzStore.getState().notes[1]).toBe("keep"); expect(useHifzStore.getState().memorization[1].memorized).toBe(true); expect(useHifzStore.getState().setNote).toBe(action);
     expect(recoveryCopies(null).some((r) => r.raw === original)).toBe(true); expect(testStorage.getItem("hifz-storage")).toBe(original);

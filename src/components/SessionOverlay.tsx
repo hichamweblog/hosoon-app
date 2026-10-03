@@ -54,13 +54,11 @@ function SessionInner({ payload }: { payload: SessionPayload }) {
   const finish = () => {
     if (finishing.current) return;
     finishing.current = true;
-    const before = useHifzStore.getState().totalXp;
     state.finishSession(payload, seconds());
-    const gained = useHifzStore.getState().totalXp - before;
     if (readonly) toast.error("لم نؤكد حفظ الجلسة؛ مساحة البيانات غير قابلة للكتابة الآن");
     else if (preview) toast.info(useHifzStore.getState().sessions[payload.id] ? "حُفظ وقت الدراسة فقط؛ المعاينة لا تسجّل إنجازًا مخططًا" : "أُغلقت المعاينة دون إنشاء وقت أو إنجاز وهمي");
     else if (payload.kind === "free_review") toast.success("حُفظ التثبيت الفردي — المراجعة المخططة لم تتغير");
-    else toast.success(gained > 0 ? `حُفظ إنجازك · +${formatNum(gained, arabic)} نقطة` : "حُفظت الجلسة دون تكرار النقاط");
+    else toast.success("حُفظ إنجازك");
     closeCurrent();
   };
   const rate = (rating: ThumunRating) => {

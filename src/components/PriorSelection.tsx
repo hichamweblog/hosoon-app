@@ -35,6 +35,6 @@ export default function PriorSelection({ selected, onChange, arabic = true }: { 
       {mode === "surahs" && <p className="text-xs text-muted-foreground">الثمن المشترك بين سور لا يُحتسب إلا إذا اخترت جميع سور مادته. استخدم «أثمان محددة» للدقة.</p>}
     </>}
     <p className="text-sm font-semibold">المحدد: {formatNum(selected.size, arabic)} من {formatNum(480, arabic)} ثمناً</p>
-    <p className="text-xs text-muted-foreground">هذا تصريح بالمحفوظ السابق؛ لا يصنع نشاطًا أو أورادًا تاريخية أو نقاطًا جديدة.</p>
+    <p className="text-xs text-muted-foreground">هذا تصريح بالمحفوظ السابق؛ لا يصنع نشاطًا أو أورادًا تاريخية.</p>
   </div>;
 }

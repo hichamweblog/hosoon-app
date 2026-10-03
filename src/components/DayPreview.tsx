@@ -21,7 +21,7 @@ export default function DayPreview({ day, date, onClose }: { day: number; date?:
   const arabic = state.settings.arabicNumerals;
   return <AppModal title={date ? `خطة ${date}` : `محطة الثمن ${formatNum(day, arabic)}`} onClose={onClose}>
     <div className="p-5 overflow-y-auto space-y-4 min-h-0">
-      <div className="rounded-xl bg-primary/10 p-3 text-sm leading-relaxed">{actual ? "هذه مواد خطة اليوم الفعلية؛ تسجيل الإنجاز يتم من جلساتها أو من ورد اليوم." : stored ? "خطة يوم محفوظة بموادها الأصلية. المعاينة لا تعيد كتابة التاريخ ولا تسجّل إنجازًا أو نقاطًا لذلك اليوم." : "معاينة نظرية عند بلوغ هذه المحطة، وليست خطة مؤرخة أو يوم إنجاز. الورد الفعلي يعتمد على المحفوظ ووتيرتك آنذاك؛ لا نقاط أو تقييم دائم من هذه المعاينة."}</div>
+      <div className="rounded-xl bg-primary/10 p-3 text-sm leading-relaxed">{actual ? "هذه مواد خطة اليوم الفعلية؛ تسجيل الإنجاز يتم من جلساتها أو من ورد اليوم." : stored ? "خطة يوم محفوظة بموادها الأصلية. المعاينة لا تعيد كتابة التاريخ ولا تسجّل إنجازًا لذلك اليوم." : "معاينة نظرية عند بلوغ هذه المحطة، وليست خطة مؤرخة أو يوم إنجاز. الورد الفعلي يعتمد على المحفوظ ووتيرتك آنذاك؛ لا تقييم دائم من هذه المعاينة."}</div>
       <h2 className="font-bold text-lg break-words">{thumunTitle(t, arabic)}</h2><p className="text-sm text-muted-foreground">{thumunRangeLabel(t, arabic)}</p><p className="font-quran text-xl leading-loose">{t.partialStart ? "…" : ""}{t.text}</p>
       <p className="text-sm">حالة المحفوظ: {state.memorization[day]?.memorized ? "موثّق كمحفوظ" : "غير موثّق بعد"}</p>
       <Button variant="outline" className="w-full min-h-12" onClick={() => openReader(day)}><BookOpen className="size-4" aria-hidden /> قراءة هذا الثمن</Button>

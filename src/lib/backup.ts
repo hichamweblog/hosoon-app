@@ -7,7 +7,7 @@ import { PROGRESS_VERSION, snapshotOf, type ProgressData } from "./progress/type
 export const BACKUP_VERSION = PROGRESS_VERSION;
 export { MAX_BACKUP_BYTES };
 export interface BackupFile { app: "hosoon"; version: number; exportedAt: string; state: ProgressData }
-export interface BackupSummary { currentDay: number; totalXp: number; streak: number; daysCompleted: number; notes: number; ratings: number; memorized: number; sessions: number }
+export interface BackupSummary { currentDay: number; streak: number; daysCompleted: number; notes: number; ratings: number; memorized: number; sessions: number }
 const envelopeSchema = z.object({
   app: z.literal("hosoon").optional(), version: z.number().int().min(0).max(PROGRESS_VERSION).optional(),
   exportedAt: z.string().datetime({ offset: true }).optional(), state: z.unknown(),
@@ -29,7 +29,7 @@ export function validateBackup(parsed: unknown): { ok: true; file: BackupFile; s
     const metrics = progressMetrics(data);
     const file: BackupFile = { app: "hosoon", version: BACKUP_VERSION, exportedAt: "exportedAt" in envelope && typeof envelope.exportedAt === "string" ? envelope.exportedAt : new Date().toISOString(), state: data };
     return { ok: true, file, summary: {
-      currentDay: data.currentDay, totalXp: data.totalXp, streak: data.streak, daysCompleted: metrics.perfectDays,
+      currentDay: data.currentDay, streak: data.streak, daysCompleted: metrics.perfectDays,
       memorized: metrics.count, notes: Object.values(data.notes).filter(Boolean).length,
       ratings: Object.keys(data.thumunRatings).length, sessions: Object.keys(data.sessions).length,
     } };

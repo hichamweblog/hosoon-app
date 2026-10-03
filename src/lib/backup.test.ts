@@ -10,10 +10,10 @@ describe("نقل v4، ترحيل v0..3، وفصل البيانات عن الأف
     const result = validateBackup(JSON.parse(JSON.stringify(createBackup(state)))); expect(result.ok).toBe(true);
     if (result.ok) expect(snapshotOf(result.file.state)).toEqual(snapshotOf(state));
   });
-  it.each([0, 1, 2, 3])("يحفظ رصيد وملاحظات ومسودات النسخة القديمة %i دون اختلاق تواريخ", (version) => {
+  it.each([0, 1, 2, 3])("يحفظ ملاحظات ومسودات النسخة القديمة %i دون اختلاق تواريخ", (version) => {
     const result = validateBackup(envelope(legacy, version)); expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.file.version).toBe(4); expect(result.summary.totalXp).toBe(340); expect(result.summary.memorized).toBe(1);
+      expect(result.file.version).toBe(5); expect(result.summary.memorized).toBe(1);
       expect(result.summary.daysCompleted).toBe(0); expect(result.file.state.dailyPlans).toEqual({});
       expect(result.file.state.notes[1]).toBe("ملاحظة قديمة"); expect(result.file.state.editedThumuns[1].startAya).toBe(3);
     }

@@ -20,7 +20,6 @@ import { formatNum } from "@/lib/format";
 import { planToFortress, tasksForPlan, memorizedIds } from "@/lib/progress/plan";
 import { scheduleDailyReminder, cancelDailyReminder } from "@/lib/reminders";
 import ScreenBoundary from "./ScreenBoundary";
-import FloatingXpOverlay from "./FloatingXpOverlay";
 
 const loading = () => <p role="status" className="p-6 text-center text-sm text-muted-foreground">جارٍ فتح الشاشة…</p>;
 const Onboarding = dynamic(() => import("./Onboarding"), { loading });
@@ -100,6 +99,6 @@ function Workspace() {
     {session && <ScreenBoundary onClose={() => useSessionStore.getState().close()}><SessionOverlay /></ScreenBoundary>}
     {readerOpen && <ScreenBoundary onClose={() => useMushafStore.getState().closeReader()}><Reader /></ScreenBoundary>}
     {state.khatmaCompletedAt && state.celebrationSeenAt !== state.khatmaCompletedAt && <Celebration />}
-    <ActiveAudio /><PwaManager /><FloatingXpOverlay />
+    <ActiveAudio /><PwaManager />
   </main>;
 }

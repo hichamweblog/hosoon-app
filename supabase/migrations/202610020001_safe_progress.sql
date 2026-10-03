@@ -11,11 +11,11 @@ alter table public.user_progress
 do $$ begin
   if not exists (select 1 from pg_constraint where conname = 'hosoon_progress_numeric_bounds' and conrelid = 'public.user_progress'::regclass) then
     alter table public.user_progress add constraint hosoon_progress_numeric_bounds
-      check (current_day between 1 and 480 and streak >= 0 and best_streak >= 0 and total_xp >= 0 and revision >= 0 and epoch >= 0) not valid;
+      check (current_day between 1 and 480 and streak >= 0 and best_streak >= 0 and revision >= 0 and epoch >= 0) not valid;
   end if;
   if not exists (select 1 from pg_constraint where conname = 'hosoon_progress_snapshot_contract' and conrelid = 'public.user_progress'::regclass) then
     alter table public.user_progress add constraint hosoon_progress_snapshot_contract check (
-      snapshot is null or (schema_version = 4 and jsonb_typeof(snapshot) = 'object'
+      snapshot is null or (schema_version = 5 and jsonb_typeof(snapshot) = 'object'
       and snapshot->>'ownerId' = user_id::text and (snapshot->>'epoch')::bigint = epoch
       and pg_column_size(snapshot) <= 8388608)) not valid;
   end if;
@@ -46,8 +46,8 @@ begin
   for k in select jsonb_object_keys(p_snapshot) loop
     if k <> all(array['schemaVersion','ownerId','epoch','currentDay','startDate','calendarStartDate',
       'memorization','dailyPlans','completions','sessions','reviewAttempts','versions','legacyDailyLog',
-      'legacyXp','notes','thumunRatings','editedThumuns','settings','maintain','khatmaCompletedAt',
-      'celebrationSeenAt','showOnboarding','completedTasks','dailyLog','sessionLog','totalXp',
+      'notes','thumunRatings','editedThumuns','settings','maintain','khatmaCompletedAt',
+      'celebrationSeenAt','showOnboarding','completedTasks','dailyLog','sessionLog',
       'streak','bestStreak','lastActiveDate']) then raise exception 'HOSOON_UNKNOWN_FIELD'; end if;
   end loop;
   foreach k in array array['memorization','dailyPlans','completions','sessions','reviewAttempts',
@@ -55,7 +55,7 @@ begin
       'completedTasks','dailyLog','sessionLog'] loop
     if jsonb_typeof(p_snapshot->k) is distinct from 'object' then raise exception 'HOSOON_INVALID_MAP'; end if;
   end loop;
-  foreach k in array array['legacyXp','totalXp','streak','bestStreak'] loop
+  foreach k in array array['streak','bestStreak'] loop
     if jsonb_typeof(p_snapshot->k) is distinct from 'number' or not coalesce((p_snapshot->>k) ~ '^[0-9]+$', false) or (p_snapshot->>k)::numeric > 9007199254740991 then
       raise exception 'HOSOON_INVALID_NUMBER';
     end if;
@@ -89,12 +89,12 @@ begin
       raise exception 'HOSOON_CONFLICT';
     end if;
     insert into public.user_progress(user_id, snapshot, schema_version, revision, epoch)
-      values (uid, p_snapshot, 4, 1, 0) returning * into r;
+      values (uid, p_snapshot, 5, 1, 0) returning * into r;
   else
     if p_expected_epoch is null or p_expected_epoch < 0 or r.revision <> p_expected_revision or r.epoch <> p_expected_epoch or (p_snapshot->>'epoch')::bigint <> r.epoch then
       raise exception 'HOSOON_CONFLICT';
     end if;
-    update public.user_progress set snapshot = p_snapshot, schema_version = 4, revision = r.revision + 1
+    update public.user_progress set snapshot = p_snapshot, schema_version = 5, revision = r.revision + 1
       where user_id = uid returning * into r;
   end if;
   return to_jsonb(r);
@@ -140,8 +140,8 @@ begin
   -- Keep a reset row forever. A stale device cannot resurrect a deleted row at epoch 0.
   p_snapshot := jsonb_set(p_snapshot, '{epoch}', to_jsonb(next_epoch));
   insert into public.user_progress(user_id, snapshot, schema_version, revision, epoch)
-    values (uid, p_snapshot, 4, next_revision, next_epoch)
-    on conflict (user_id) do update set snapshot = excluded.snapshot, schema_version = 4,
+    values (uid, p_snapshot, 5, next_revision, next_epoch)
+    on conflict (user_id) do update set snapshot = excluded.snapshot, schema_version = 5,
       revision = excluded.revision, epoch = excluded.epoch returning * into r;
   return to_jsonb(r);
 end $$;
