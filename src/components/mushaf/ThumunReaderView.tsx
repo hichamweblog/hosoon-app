@@ -6,6 +6,8 @@ import { useMushafStore } from "@/store/useMushafStore";
 import { useHifzStore } from "@/store/useHifzStore";
 import { getMushafPageInfo, getMushafPagesForThumun, TOTAL_MUSHAF_PAGES } from "@/lib/mushaf-mapping";
 import { formatNum } from "@/lib/format";
+import { getThumun } from "@/lib/quran-data";
+import { surahName } from "@/lib/quran-labels";
 import { downloadMushafPages } from "@/lib/offline/mushaf";
 import { AppModal } from "../ui/app-modal";
 import { Button } from "../ui/button";
@@ -19,6 +21,8 @@ export default function ThumunReaderView() {
   const swiped = useRef(false);
   useEffect(() => { const audio = useAudioStore.getState(); if (audio.track?.mode === "thumun" && audio.track.targetId !== reader.thumunId && audio.playing) pauseAudio(); }, [reader.thumunId]);
   const page = getMushafPageInfo(reader.currentPage, reader.thumunId);
+  const thumun = getThumun(reader.thumunId);
+  const surah = thumun ? surahName(thumun.startSura) : null;
   const audio = useAudioStore(), audioKey = audioTrackKey("thumun", reader.thumunId, settings.thumunReciterId);
   const audioActive = audio.track?.key === audioKey;
   const toggleReaderAudio = () => {
@@ -65,7 +69,7 @@ export default function ThumunReaderView() {
       {controls && <header className="shrink-0 border-b border-border/70 bg-card/95 px-2 py-0 backdrop-blur-sm">
         <div className="flex min-h-8 items-center justify-between gap-0">
           <Button size="icon-xs" variant="ghost" onClick={reader.closeReader} aria-label="إغلاق القارئ" className="!size-7 !min-h-7 !p-0"><ArrowRight className="size-3.5" aria-hidden /></Button>
-          <h2 className="min-w-0 truncate px-1 text-center text-xs font-bold">الثمن {formatNum(reader.thumunId, arabic)}</h2>
+          <h2 className="min-w-0 truncate px-1 text-center text-xs font-bold">{surah ? `${surah} — ` : ""}الثمن {formatNum(reader.thumunId, arabic)}</h2>
           <div className="flex shrink-0 items-center gap-0">
             <div className="relative flex size-7 items-center justify-center">
               <button type="button" aria-label={audioActive && audio.playing ? "إيقاف الصوت" : "تشغيل الصوت"} onClick={toggleReaderAudio} className="relative z-10 grid size-7 place-items-center rounded-full text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
