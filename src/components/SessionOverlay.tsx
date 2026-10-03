@@ -119,7 +119,7 @@ function SessionInner({ payload }: { payload: SessionPayload }) {
   </AppModal>;
 }
 function ThumunStudy({ id, audio = false }: { id: number; audio?: boolean }) {
-  const state = useHifzStore(), status = useAppStatusStore(), openReader = useMushafStore((s) => s.openReader), t = getThumun(id)!;
+  const state = useHifzStore(), openReader = useMushafStore((s) => s.openReader), t = getThumun(id)!;
   const arabic = state.settings.arabicNumerals;
   return <section className="rounded-2xl bg-surface p-4 space-y-3">
     <h2 className="font-bold text-base break-words">الثمن {id}</h2><p className="text-sm text-muted-foreground">{thumunRangeLabel(t, arabic)}</p>

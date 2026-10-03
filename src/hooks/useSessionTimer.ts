@@ -7,10 +7,13 @@ const IDLE_TIMEOUT = 60_000;
 export function useSessionTimer() {
   const [elapsed, setElapsed] = useState(0);
   const [isActive, setIsActive] = useState(true);
-  const lastActivity = useRef(Date.now());
-  const countedUntil = useRef(Date.now());
+  const lastActivity = useRef(0);
+  const countedUntil = useRef(0);
 
   useEffect(() => {
+    const startedAt = Date.now();
+    lastActivity.current = startedAt;
+    countedUntil.current = startedAt;
     const markActivity = () => {
       lastActivity.current = Date.now();
       setIsActive(true);

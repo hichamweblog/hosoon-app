@@ -39,7 +39,7 @@ export default function QuranAudioPlayer({ mode, targetId, title, subtitle, curr
       touchStart.current = null;
     },
   } : {};
-  return <section {...touchHandlers} className={`${floating ? "fixed bottom-3 left-1/2 z-40 w-[min(calc(100%-1rem),24rem)] -translate-x-1/2 rounded-full border border-border/80 bg-card/95 px-2 py-1 shadow-lg backdrop-blur-md" : minimal ? "px-1 py-0.5" : "rounded-2xl border border-border bg-surface p-3 shadow-sm"} ${className}`} aria-label={`مشغل ${readerTitle}`} data-audio-target={`${mode}:${targetId}`}>
+  return <section {...touchHandlers} className={`${floating ? "fixed bottom-3 left-1/2 z-40 w-[min(calc(100%-1rem),24rem)] -translate-x-1/2 rounded-full border border-border/80 bg-card/95 px-2 py-1 shadow-lg backdrop-blur-md" : minimal ? "px-1 py-0.5" : `rounded-2xl border border-border bg-surface ${compact ? "p-2" : "p-3"} shadow-sm`} ${className}`} aria-label={`مشغل ${readerTitle}`} data-audio-target={`${mode}:${targetId}`}>
     {!minimal && !floating && <div className="flex items-center gap-2 min-w-0">
       <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Headphones className="size-4" aria-hidden /></span>
       <div className="min-w-0 flex-1">
