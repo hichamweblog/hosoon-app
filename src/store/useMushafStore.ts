@@ -15,8 +15,6 @@ interface MushafStoreState {
   currentPage: number;
   thumunPages: number[];
   theme: MushafTheme;
-  isZoomed: boolean;
-  showAudio: boolean;
 
   openReader: (thumunId: number, startPage?: number) => void;
   openByPage: (pageNumber: number) => void;
@@ -27,8 +25,6 @@ interface MushafStoreState {
   nextThumun: () => void;
   prevThumun: () => void;
   setTheme: (theme: MushafTheme) => void;
-  toggleZoom: () => void;
-  toggleAudio: () => void;
 }
 
 export const useMushafStore = create<MushafStoreState>()(
@@ -39,8 +35,6 @@ export const useMushafStore = create<MushafStoreState>()(
       currentPage: 1,
       thumunPages: [1, 2, 3],
       theme: "sepia",
-      isZoomed: false,
-      showAudio: false,
 
       openReader: (thumunId: number, startPage?: number) => {
         if (!Number.isInteger(thumunId) || thumunId < 1 || thumunId > TOTAL_ATHMAN) return;
@@ -153,15 +147,12 @@ export const useMushafStore = create<MushafStoreState>()(
       },
 
       setTheme: (theme: MushafTheme) => set({ theme }),
-      toggleZoom: () => set((s) => ({ isZoomed: !s.isZoomed })),
-      toggleAudio: () => set((s) => ({ showAudio: !s.showAudio })),
     }),
     {
       name: "hosoon-mushaf-reader",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         theme: state.theme,
-        isZoomed: state.isZoomed,
       }),
     },
   ),

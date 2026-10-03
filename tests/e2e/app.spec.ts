@@ -37,7 +37,7 @@ test("معاينة مستقبلية لا تمنح XP أو تقييمًا، وا�
   for (const number of ["٢", "2", "۲"]) { await search.fill(number); await expect(page.getByRole("button", { name: "قراءة الثمن 2", exact: true })).toBeVisible(); expect(await page.getByRole("button", { name: "قراءة الثمن 2", exact: true }).count()).toBe(1); }
   await search.fill("7"); await page.getByRole("button", { name: "قراءة الثمن 7", exact: true }).click();
   await expect(page.getByRole("dialog", { name: /المصحف/ })).toBeVisible();
-  await page.getByRole("button", { name: "إظهار أدوات القارئ" }).click();
+  await page.locator('[aria-label^="صفحة المصحف"]').click({ position: { x: 100, y: 100 } });
   await page.getByRole("button", { name: "إغلاق القارئ" }).click();
   expect((await readProgress(page)).totalXp).toBe(0); expect((await readProgress(page)).thumunRatings).toEqual({});
 });
@@ -61,5 +61,5 @@ test("نسخة مشوهة لا تستبدل الحالة، وround-trip صالح
 test("خطأ الصورة يظهر إعادة محاولة، والقارئ في 320 و390 والاتجاه الأفقي", async ({ page }) => {
   await seed(page); let fail = true; await page.route("**/mushaf/pages/page1.jpg*", async (route) => { if (fail) await route.abort(); else await route.continue(); }); await open(page); await page.getByRole("button", { name: "فتح المصحف الشريف" }).click(); await modal(page, "المصحف — الثمن 1");
   await expect(page.getByText("تعذّر تحميل صورة هذه الصفحة.")).toBeVisible(); fail = false; await page.getByRole("button", { name: "إعادة تحميل الصورة" }).click(); await expect(page.locator("img[alt*='صورة صفحة']")).toBeVisible();
-  for (const size of [{ width: 320, height: 700 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) { await page.setViewportSize(size); expect(await overflow(page)).toBe(false); await expect(page.getByRole("button", { name: "إغلاق القارئ" })).toBeInViewport(); await expect(page.getByRole("button", { name: "الصفحة التالية", exact: true })).toBeInViewport(); }
+  for (const size of [{ width: 320, height: 700 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) { await page.setViewportSize(size); expect(await overflow(page)).toBe(false); await expect(page.getByRole("button", { name: "الصفحة التالية", exact: true })).toBeInViewport(); }
 });

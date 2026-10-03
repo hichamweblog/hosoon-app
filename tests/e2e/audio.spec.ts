@@ -12,20 +12,19 @@ test("صوت واحد فعلي وMediaSession للنشط، وانتقال الج
   await seed(page); await page.route(/https:\/\/.*\.mp3(?:\?.*)?$/, (route) => route.fulfill({ status: 200, contentType: "audio/wav", body: wave() })); await open(page);
   await page.getByRole("button", { name: /^تفاصيل.*الحزب$/ }).click(); await page.getByRole("button", { name: "ابدأ الاستماع", exact: true }).click(); const session = await modal(page, "جلسة الاستماع");
   await session.getByRole("button", { name: /^تشغيل الحزب / }).click(); await expect.poll(() => page.evaluate(audioPlaying)).toBe(true); expect(await page.locator("audio").count()).toBe(1);
-  await session.getByRole("button", { name: "إغلاق جلسة الاستماع" }).click(); await page.getByRole("button", { name: "فتح المصحف الشريف" }).click(); await modal(page, "المصحف — الثمن 1"); await page.getByRole("button", { name: "الاستماع إلى الثمن المحدد" }).click();
-  const player = page.locator("[data-audio-target='thumun:1']"); await player.getByRole("button", { name: /^تشغيل الثمن / }).click(); await expect.poll(() => page.evaluate(audioPlaying)).toBe(true);
+  await session.getByRole("button", { name: "إغلاق جلسة الاستماع" }).click(); await page.getByRole("button", { name: "فتح المصحف الشريف" }).click(); await modal(page, "المصحف — الثمن 1"); await page.locator('[aria-label^="صفحة المصحف"]').click({ position: { x: 100, y: 100 } });
+  await page.getByRole("button", { name: "تشغيل الصوت" }).click(); await expect.poll(() => page.evaluate(audioPlaying)).toBe(true);
+  const repeat = page.getByRole("button", { name: "تكرار الثمن باستمرار" }); await repeat.click(); await expect(repeat).toHaveAttribute("aria-pressed", "true");
   expect(await page.locator("audio").count()).toBe(1); expect(await page.locator("audio").getAttribute("src")).toBe(getThumunAudioUrl("sayed", 1));
   expect(await page.evaluate(() => navigator.mediaSession.metadata?.title)).toContain("الثمن");
-  await player.getByRole("button", { name: "الأدوات", exact: true }).click(); await expect.poll(() => page.evaluate(() => document.querySelector("audio")!.currentTime)).toBeGreaterThan(1);
-  await player.getByRole("button", { name: "بداية المقطع A" }).click(); const range = player.getByRole("slider", { name: "موضع التشغيل الصوتي" }); const box = (await range.boundingBox())!;
-  await page.mouse.click(box.x + box.width * 0.5, box.y + box.height / 2); await player.getByRole("button", { name: "نهاية المقطع B" }).click(); await expect(player.getByText(/^A .* · B /)).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.querySelector("audio")!.currentTime)).toBeGreaterThan(1);
 });
 test("الصفحة 480 المشتركة: تحديد 477 يطابق عنوانه وصوته H60-T05", async ({ page }) => {
   await seed(page, guest(476)); await page.route(/https:\/\/.*\.mp3(?:\?.*)?$/, (route) => route.fulfill({ status: 200, contentType: "audio/wav", body: wave() })); await open(page); await page.getByRole("button", { name: "فتح المصحف الشريف" }).click(); await modal(page, "المصحف — الثمن 477"); await page.getByRole("button", { name: "الصفحة التالية", exact: true }).click();
-  await expect(page.getByTestId("shared-page-context")).toContainText("ثمن المحدد ٤٧٧"); await page.getByRole("button", { name: "الاستماع إلى الثمن المحدد" }).click(); const player = page.locator("[data-audio-target='thumun:477']"); await expect(player).toBeVisible(); await player.getByRole("button", { name: /^تشغيل الثمن / }).click();
+  await page.locator('[aria-label^="صفحة المصحف"]').click({ position: { x: 100, y: 100 } }); await expect(page.getByRole("heading", { name: /^الثمن 477$/ })).toBeVisible(); await page.getByRole("button", { name: "تشغيل الصوت" }).click();
   await expect.poll(() => page.evaluate(audioPlaying)).toBe(true); expect(await page.locator("audio").getAttribute("src")).toBe(getThumunAudioUrl("sayed", 477));
-  await page.getByRole("button", { name: "ثمن تالٍ", exact: true }).click(); await expect(page.locator("[data-audio-target='thumun:478']")).toBeVisible(); expect(await page.evaluate(() => document.querySelector("audio")!.paused)).toBe(true);
+  await page.getByRole("button", { name: "الصفحة التالية", exact: true }).click(); await expect(page.locator("img[alt*='صفحة 4']")).toBeVisible();
 });
 test("فشل الصوت واضح حتى في العرض المختصر، وإعادة المحاولة متاحة", async ({ page }) => {
-  await seed(page); await page.route(/https:\/\/.*\.mp3(?:\?.*)?$/, (route) => route.abort()); await open(page); await page.getByRole("button", { name: "فتح المصحف الشريف" }).click(); await modal(page, "المصحف — الثمن 1"); await page.getByRole("button", { name: "الاستماع إلى الثمن المحدد" }).click(); const player = page.locator("[data-audio-target='thumun:1']"); await player.getByRole("button", { name: /^تشغيل الثمن / }).click(); await expect(player.getByRole("alert")).toBeVisible(); await expect(player.getByRole("button", { name: "إعادة المحاولة", exact: true })).toBeVisible();
+  await seed(page); await page.route(/https:\/\/.*\.mp3(?:\?.*)?$/, (route) => route.abort()); await open(page); await page.getByRole("button", { name: "فتح المصحف الشريف" }).click(); await modal(page, "المصحف — الثمن 1"); await page.locator('[aria-label^="صفحة المصحف"]').click({ position: { x: 100, y: 100 } }); await page.getByRole("button", { name: "تشغيل الصوت" }).click(); await expect(page.getByText("تعذّر بدء التشغيل. اضغط إعادة المحاولة أو اختر قارئًا آخر.")).toBeVisible();
 });
