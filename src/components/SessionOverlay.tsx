@@ -1,515 +1,122 @@
 "use client";
-
+import { useEffect, useRef, useState } from "react";
+import { BookOpen, Minus, Pause, Play, Plus, RotateCcw } from "lucide-react";
 import { useSessionTimer } from "@/hooks/useSessionTimer";
-import { XP_TABLE, type TaskType } from "@/lib/constants";
-import { formatClock, formatNum } from "@/lib/format";
-import { juzThumunRange } from "@/lib/fortress-calculator";
+import { formatClock, formatNum, localDateKey } from "@/lib/format";
 import { getThumun } from "@/lib/quran-data";
-import { surahSpan, thumunShort, thumunTitle, hizbTitle, type SurahSpan } from "@/lib/quran-labels";
-import { vibrateLight, vibrateSuccess } from "@/lib/haptic";
-import { useSessionStore, SESSION_TASK, type SessionPayload } from "@/store/useSessionStore";
+import { juzThumunRange } from "@/lib/fortress-calculator";
+import { surahSpan, thumunRangeLabel, thumunTitle } from "@/lib/quran-labels";
 import { useHifzStore, type ThumunRating } from "@/store/useHifzStore";
-import { useXpStore } from "@/store/useXpStore";
-import QuranAudioPlayer from "./audio/QuranAudioPlayer";
-import { Button } from "./ui/button";
-import { AnimatePresence, motion } from "framer-motion";
-import {
-  BookOpen,
-  Minus,
-  Pause,
-  Play,
-  Plus,
-  RotateCcw,
-  X,
-} from "lucide-react";
+import { useSessionStore, type SessionPayload } from "@/store/useSessionStore";
 import { useMushafStore } from "@/store/useMushafStore";
-import { useMemo, useState, useEffect } from "react";
+import { useAppStatusStore } from "@/store/useAppStatusStore";
+import { AppModal, ConfirmModal } from "./ui/app-modal";
+import { Button } from "./ui/button";
+import QuranAudioPlayer from "./audio/QuranAudioPlayer";
+import { toast } from "sonner";
 
-const TITLES: Record<string, string> = {
-  new_hifz: "جلسة الحفظ",
-  review_near: "جلسة مراجعة القريب",
-  review_far: "جلسة مراجعة البعيد",
-  prep: "جلسة التحضير",
-  khatma: "جلسة الختمة",
-  khatma_recite: "جلسة الختمة — التلاوة",
-  khatma_listen: "جلسة الختمة — الاستماع",
-  maintain_recite: "الورد التثبيتي",
-};
-
-function spanOfRange(a: number, b: number): SurahSpan[] {
-  const from = getThumun(a);
-  const to = getThumun(b);
-  return from && to ? surahSpan(from, to) : [];
-}
-
+const TITLES = { new_hifz: "جلسة الحفظ", review_near: "مراجعة القريب", review_far: "مراجعة البعيد", free_review: "تثبيت حر", prep: "جلسة التحضير", khatma: "ورد التلاوة والاستماع", khatma_recite: "جلسة التلاوة", khatma_listen: "جلسة الاستماع", maintain_recite: "ورد التثبيت" };
 export default function SessionOverlay() {
   const payload = useSessionStore((s) => s.payload);
-  const close = useSessionStore((s) => s.close);
-
-  // Close on Escape key, lock body scroll, and handle browser/mobile Back button cleanly
-  useEffect(() => {
-    if (!payload) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    window.history.pushState({ modal: "session-overlay" }, "");
-
-    let poppedByBrowser = false;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        close();
-      }
-    };
-
-    const handlePopState = () => {
-      poppedByBrowser = true;
-      close();
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("popstate", handlePopState);
-
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("popstate", handlePopState);
-      if (!poppedByBrowser && typeof window !== "undefined" && window.history.state?.modal === "session-overlay") {
-        window.history.back();
-      }
-    };
-  }, [payload, close]);
-
-  return (
-    <AnimatePresence>
-      {payload && (
-        <SessionInner
-          key={`${payload.kind}-${payload.day}`}
-          payload={payload}
-        />
-      )}
-    </AnimatePresence>
-  );
+  return payload ? <SessionInner key={payload.id} payload={payload} /> : null;
 }
-
 function SessionInner({ payload }: { payload: SessionPayload }) {
-  const close = useSessionStore((s) => s.close);
-  const toggleTask = useHifzStore((s) => s.toggleTask);
-  const logSession = useHifzStore((s) => s.logSession);
-  const setThumunRating = useHifzStore((s) => s.setThumunRating);
-  const completedTasks = useHifzStore((s) => s.completedTasks);
-  const settings = useHifzStore((s) => s.settings);
-  const notes = useHifzStore((s) => s.notes);
-  const addEvent = useXpStore((s) => s.addEvent);
-  const openReader = useMushafStore((s) => s.openReader);
-  const timer = useSessionTimer(25);
-  const [confirmClose, setConfirmClose] = useState(false);
-  const arabic = settings.arabicNumerals;
-
-  const day = payload?.day ?? 1;
-  const kind = payload?.kind ?? "new_hifz";
-  const thumuns = payload?.thumuns ?? [];
-  const reciteJuzs = payload?.reciteJuzs;
-  const listenHizbs = payload?.listenHizbs;
-
-  const dayTasks = completedTasks[day] || {};
-
-  const reciteSpan = useMemo(
-    () =>
-      (reciteJuzs ?? []).flatMap((j) => spanOfRange(...juzThumunRange(j))),
-    [reciteJuzs],
-  );
-  const note = thumuns[0] ? notes[thumuns[0].id] : undefined;
-
+  const state = useHifzStore(), close = useSessionStore((s) => s.close), openReader = useMushafStore((s) => s.openReader);
+  const timer = useSessionTimer(payload.minutes ?? 25), [confirmLeave, setConfirmLeave] = useState(false), [step, setStep] = useState(0);
+  const status = useAppStatusStore();
+  const readonly = !!status.storageError || (!!state.ownerId && !status.cloudReadReady);
+  const finishing = useRef(false), arabic = state.settings.arabicNumerals;
+  const reviewing = ["review_near", "review_far", "free_review"].includes(payload.kind);
+  const preview = readonly || payload.preview || payload.planDate !== localDateKey();
+  const target = reviewing ? payload.thumuns[step] : null;
+  const ratedAll = payload.thumuns.length > 0 && payload.thumuns.every((t) => state.reviewAttempts[`${payload.id}:${t.id}`]);
+  useEffect(() => { useSessionStore.getState().setElapsed(payload.id, timer.elapsed); }, [payload.id, timer.elapsed]);
+  useEffect(() => {
+    const unload = (event: BeforeUnloadEvent) => {
+      const active = useSessionStore.getState();
+      if (active.payload?.id !== payload.id || !active.elapsed || useHifzStore.getState().ownerId !== payload.ownerId) return;
+      useHifzStore.getState().logSession("free_review", payload.day, active.elapsed, { id: payload.id, thumunIds: payload.thumuns.map((t) => t.id), abandoned: true });
+      event.preventDefault(); event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", unload);
+    return () => window.removeEventListener("beforeunload", unload);
+  }, [payload]);
+  const closeCurrent = () => { if (useSessionStore.getState().payload?.id === payload.id) close(); };
+  const seconds = () => payload.kind === "free_review" ? Math.min(timer.elapsed, (payload.minutes ?? 15) * 60) : timer.elapsed;
+  const leave = () => {
+    if (seconds() > 0) state.logSession(preview ? "free_review" : payload.kind === "prep" ? "prep_weekly" : payload.kind === "khatma" ? "khatma_recite" : payload.kind, payload.day, seconds(), { id: payload.id, thumunIds: payload.thumuns.map((t) => t.id), abandoned: true });
+    closeCurrent();
+  };
   const requestClose = () => {
-    if ((timer.elapsed > 30 || timer.isActive) && !confirmClose) {
-      setConfirmClose(true);
-      return;
-    }
-    close();
+    if (useSessionStore.getState().payload?.id !== payload.id) return;
+    if (timer.isActive || timer.elapsed > 0 || step > 0) setConfirmLeave(true); else closeCurrent();
   };
-
-  const completeTasks = (tasks: TaskType[], rating?: ThumunRating) => {
-    vibrateSuccess();
-    let gained = 0;
-    for (const task of tasks) {
-      if (!dayTasks[task]) {
-        toggleTask(day, task);
-        gained += XP_TABLE[task] ?? 0;
-      }
-    }
-    if (rating) {
-      for (const t of thumuns) setThumunRating(t.id, rating);
-    }
-    logSession(tasks[0] ?? "new_hifz", day, Math.max(1, timer.elapsed));
-    if (gained > 0) addEvent(gained, window.innerWidth / 2, window.innerHeight / 2);
-    close();
+  const finish = () => {
+    if (finishing.current) return;
+    finishing.current = true;
+    const before = useHifzStore.getState().totalXp;
+    state.finishSession(payload, seconds());
+    const gained = useHifzStore.getState().totalXp - before;
+    if (readonly) toast.error("لم نؤكد حفظ الجلسة؛ مساحة البيانات غير قابلة للكتابة الآن");
+    else if (preview) toast.info(useHifzStore.getState().sessions[payload.id] ? "حُفظ وقت الدراسة فقط؛ المعاينة لا تسجّل إنجازًا مخططًا" : "أُغلقت المعاينة دون إنشاء وقت أو إنجاز وهمي");
+    else if (payload.kind === "free_review") toast.success("حُفظ التثبيت الفردي — المراجعة المخططة لم تتغير");
+    else toast.success(gained > 0 ? `حُفظ إنجازك · +${formatNum(gained, arabic)} نقطة` : "حُفظت الجلسة دون تكرار النقاط");
+    closeCurrent();
   };
-
-  const taskOf = SESSION_TASK[kind];
-
-  if (!payload) return null;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-hidden"
-      dir="rtl"
-      role="dialog"
-      aria-modal="true"
-      aria-label={TITLES[kind]}
-    >
-      <motion.div
-        initial={{ scale: 0.95, y: 15 }}
-        animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.95, y: 15 }}
-        transition={{ type: "spring", stiffness: 320, damping: 28 }}
-        className="bg-surface rounded-3xl w-full max-w-lg max-h-[90dvh] flex flex-col min-h-0 border border-border shadow-2xl relative overflow-hidden my-auto"
-      >
-        {/* Fixed Header */}
-        <div className="px-5 sm:px-6 py-4 border-b border-border/40 shrink-0 bg-surface/95 backdrop-blur-sm z-10 flex justify-between items-center">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={requestClose}
-            aria-label="إغلاق الجلسة"
-            className="rounded-full hover:bg-muted"
-          >
-            <X className="w-5 h-5" />
-          </Button>
-          <span className="font-semibold text-lg">{TITLES[kind]}</span>
-          <div className="w-9" aria-hidden />
+  const rate = (rating: ThumunRating) => {
+    if (!target || preview) return;
+    state.recordReviewAttempt(target.id, rating, payload.id);
+    setStep((value) => value + 1);
+  };
+  const recite = payload.reciteJuzs ?? [];
+  const reading = ["khatma_recite", "maintain_recite", "khatma"].includes(payload.kind);
+  return <AppModal id={`session-${payload.id}`} title={TITLES[payload.kind]} onClose={requestClose}>
+    <div className="p-5 space-y-4 overflow-y-auto min-h-0 flex-1 overscroll-contain" tabIndex={0} aria-label="مواد الجلسة">
+      {preview && <p className="rounded-xl bg-muted p-3 text-sm">معاينة مواد فقط. لا تقييم محفوظ ولا إنجاز محطة مستقبلية؛ وقت الدراسة الفعلي يمكن حفظه كتعلّم حر.</p>}
+      {payload.kind === "free_review" && <p className="text-sm text-muted-foreground">جلسة إضافية بحد {formatNum(payload.minutes ?? 15, arabic)} دقيقة؛ لا تُكمل مراجعة القريب أو البعيد. يمكنك التوقف وحفظ ما راجعته.</p>}
+      {reading && recite.map((juz) => {
+        const [a, b] = juzThumunRange(juz), from = getThumun(a)!, to = getThumun(b)!;
+        return <section key={juz} className="rounded-2xl bg-surface p-4 space-y-3"><h2 className="font-bold">تلاوة الجزء {formatNum(juz, arabic)}</h2><ul className="text-sm space-y-2">{surahSpan(from, to).map((row) => <li key={`${row.sura}:${row.fromAya}`}>{row.name}: {formatNum(row.fromAya, arabic)}–{formatNum(row.toAya, arabic)}</li>)}</ul><Button variant="outline" className="w-full min-h-11" onClick={() => openReader(a)}><BookOpen className="size-4" aria-hidden /> اقرأ الجزء من المصحف</Button></section>;
+      })}
+      {["khatma_listen", "khatma"].includes(payload.kind) && (payload.listenHizbs ?? []).map((hizb) => <QuranAudioPlayer key={hizb} mode="hizb" targetId={hizb} title={`الحزب ${formatNum(hizb, arabic)}`} />)}
+      {reviewing ? target ? <>
+        <p className="text-sm font-semibold text-primary">الثمن {formatNum(step + 1, arabic)} من {formatNum(payload.thumuns.length, arabic)}</p>
+        {!preview && <ThumunStudy key={target.id} id={target.id} />}
+      </> : <div className="rounded-2xl bg-primary/10 p-4 space-y-3"><h2 className="font-bold">نتائج هذه الجلسة</h2><ul className="text-sm space-y-2">{payload.thumuns.map((t) => {
+        const rating = state.reviewAttempts[`${payload.id}:${t.id}`]?.rating;
+        return <li key={t.id}>الثمن {formatNum(t.id, arabic)}: {rating === "weak" ? "يحتاج تثبيتًا" : rating === "good" ? "جيد" : rating === "strong" ? "متقن" : "لم يُقيّم"}</li>;
+      })}</ul></div> : payload.thumuns.map((t) => <ThumunStudy key={t.id} id={t.id} audio={payload.kind === "prep" || payload.kind === "new_hifz"} />)}
+      {preview && reviewing && payload.thumuns.map((t) => <ThumunStudy key={`preview-${t.id}`} id={t.id} />)}
+      <section className="rounded-2xl border border-border p-4 space-y-3" aria-label="مؤقت الجلسة">
+        <p className="text-sm text-muted-foreground text-center">وقت المؤقت · الدراسة الفعلية {formatNum(Math.floor(timer.elapsed / 60), arabic)} دقيقة</p>
+        <p role="timer" className="text-4xl font-mono font-bold text-primary text-center" dir="ltr" aria-label={`متبقي ${formatClock(timer.remaining)}`}>{formatClock(timer.remaining)}</p>
+        <div className="flex items-center justify-center gap-2">
+          <Button size="icon" variant="ghost" aria-label="إنقاص خمس دقائق" disabled={timer.isActive || timer.duration <= 300 || payload.kind === "free_review"} onClick={() => timer.changeDuration(-5)}><Minus className="size-4" /></Button>
+          <Button size="icon" className="rounded-full size-12" aria-label={timer.isActive ? "إيقاف المؤقت مؤقتًا" : "بدء المؤقت"} disabled={timer.done} onClick={() => timer.isActive ? timer.pause() : timer.start()}>{timer.isActive ? <Pause className="size-5" /> : <Play className="size-5" />}</Button>
+          <Button size="icon" variant="ghost" aria-label="زيادة خمس دقائق" disabled={timer.isActive || timer.duration >= 7200 || payload.kind === "free_review"} onClick={() => timer.changeDuration(5)}><Plus className="size-4" /></Button>
+          <Button size="icon" variant="ghost" aria-label="إعادة المؤقت مع الاحتفاظ بوقت الدراسة" disabled={payload.kind === "free_review" && timer.done} onClick={timer.reset}><RotateCcw className="size-4" /></Button>
         </div>
-
-        {/* Scrollable Content Body */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-4 space-y-4 overscroll-contain custom-scrollbar">
-          {confirmClose && (
-            <div className="p-3 rounded-xl bg-destructive/10 text-sm flex items-center justify-between gap-2 border border-destructive/20">
-              <span>إنهاء الجلسة دون إتمام؟</span>
-              <span className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setConfirmClose(false)}>
-                  بقائي
-                </Button>
-                <Button size="sm" variant="destructive" onClick={close}>
-                  إنهاء
-                </Button>
-              </span>
-            </div>
-          )}
-
-          {note ? (
-            <div className="bg-f-gold/10 border border-f-gold/30 text-foreground/90 rounded-xl px-3 py-2 text-xs leading-relaxed">
-              <b className="text-f-gold">ملاحظتك:</b> {note}
-            </div>
-          ) : null}
-
-          {kind === "khatma_recite" || kind === "maintain_recite" ? (
-            <div className="space-y-4">
-              <SpanSection
-                title={`تلاوة: ${(reciteJuzs ?? []).length > 1 ? "الأجزاء" : "الجزء"} ${(reciteJuzs ?? [])
-                  .map((j) => formatNum(j, arabic))
-                  .join("، ")}`}
-                rows={reciteSpan}
-                arabic={arabic}
-              />
-            </div>
-          ) : kind === "khatma_listen" ? (
-            <div className="space-y-3">
-              <div className="bg-background/50 rounded-xl p-3.5 border border-border/50">
-                <p className="font-bold text-sm text-foreground">
-                  سماع: {(listenHizbs ?? []).length > 1 ? "الأحزاب" : "الحزب"} {(listenHizbs ?? [])
-                    .map((h) => hizbTitle(h, arabic))
-                    .join(" · ")}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  ورد الاستماع اليومي لتثبيت الحفظ وضبط الأداء
-                </p>
-              </div>
-              {(listenHizbs ?? []).map((h) => (
-                <QuranAudioPlayer
-                  key={h}
-                  mode="hizb"
-                  targetId={h}
-                  title={`سماع ${hizbTitle(h, arabic)}`}
-                  subtitle="ورد الاستماع لليوم"
-                  autoPlay={(listenHizbs ?? []).length === 1}
-                />
-              ))}
-            </div>
-          ) : kind === "khatma" ? (
-            <div className="space-y-4">
-              {reciteJuzs && reciteJuzs.length > 0 && (
-                <SpanSection
-                  title={`تلاوة: ${reciteJuzs.length > 1 ? "الأجزاء" : "الجزء"} ${reciteJuzs
-                    .map((j) => formatNum(j, arabic))
-                    .join("، ")}`}
-                  rows={reciteSpan}
-                  arabic={arabic}
-                />
-              )}
-              {listenHizbs && listenHizbs.length > 0 && (
-                <div className="space-y-3">
-                  <p className="font-bold text-sm text-foreground">
-                    سماع: {listenHizbs.length > 1 ? "الأحزاب" : "الحزب"} {listenHizbs
-                      .map((h) => hizbTitle(h, arabic))
-                      .join(" · ")}
-                  </p>
-                  {listenHizbs.map((h) => (
-                    <QuranAudioPlayer
-                      key={h}
-                      mode="hizb"
-                      targetId={h}
-                      title={`سماع ${hizbTitle(h, arabic)}`}
-                      subtitle="ورد الاستماع لليوم"
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {thumuns.map((t) => (
-                <div key={t.id} className="bg-background/50 rounded-2xl p-4 border border-border/50 space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                    <div>
-                      <p className="font-bold text-base text-foreground">{thumunTitle(t, arabic)}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{thumunShort(t, arabic)}</p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        vibrateLight();
-                        openReader(t.id);
-                      }}
-                      className="self-start sm:self-auto rounded-xl font-bold gap-1.5 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20 hover:bg-amber-500/20 shrink-0"
-                    >
-                      <BookOpen className="w-4 h-4" />
-                      <span>قراءة من المصحف</span>
-                    </Button>
-                  </div>
-                  <p className="font-quran text-foreground/90 text-lg leading-loose">
-                    {t.partialStart ? "…" : ""}
-                    {t.text}
-                  </p>
-                  {(kind === "new_hifz" || kind === "prep") && (
-                    <QuranAudioPlayer
-                      mode="thumun"
-                      targetId={t.id}
-                      compact={kind === "prep"}
-                      title={`سماع ${thumunTitle(t, arabic)}`}
-                      subtitle={kind === "new_hifz" ? "استمع وكرر لتثبيت الحفظ الجديد" : "تحضير الثمن بالسماع"}
-                    />
-                  )}
-                </div>
-              ))}
-              {thumuns.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">لا مادة لهذا اليوم</p>
-              )}
-            </div>
-          )}
-
-          {/* Timer */}
-          <div className="bg-background/50 rounded-2xl p-5 border border-border">
-            <div className="flex items-center justify-center gap-2 mb-3">
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="إنقاص خمس دقائق"
-                onClick={() => {
-                  vibrateLight();
-                  timer.changeDuration(-5);
-                }}
-                disabled={timer.isActive || timer.duration <= 300}
-              >
-                <Minus className="w-5 h-5" />
-              </Button>
-              <div
-                className="text-5xl font-mono font-bold tracking-widest text-primary w-40 text-center"
-                aria-live="polite"
-              >
-                {formatClock(timer.remaining)}
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="زيادة خمس دقائق"
-                onClick={() => {
-                  vibrateLight();
-                  timer.changeDuration(5);
-                }}
-                disabled={timer.isActive}
-              >
-                <Plus className="w-5 h-5" />
-              </Button>
-            </div>
-            <div className="flex items-center justify-center gap-4">
-              <Button
-                variant={timer.isActive ? "outline" : "default"}
-                size="icon"
-                className="w-12 h-12 rounded-full"
-                onClick={() => {
-                  vibrateLight();
-                  if (timer.isActive) timer.pause();
-                  else timer.start();
-                }}
-                aria-label={timer.isActive ? "إيقاف مؤقت" : "بدء المؤقت"}
-              >
-                {timer.isActive ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-1" />}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-12 h-12 rounded-full"
-                onClick={() => {
-                  vibrateLight();
-                  timer.reset();
-                }}
-                aria-label="إعادة ضبط المؤقت"
-              >
-                <RotateCcw className="w-5 h-5" />
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Fixed Footer */}
-        <div className="p-4 sm:p-5 pt-3 border-t border-border/40 bg-surface/95 backdrop-blur-sm shrink-0 space-y-3">
-          {(kind === "new_hifz" || kind === "maintain_recite") && taskOf && (
-            <Button
-              size="lg"
-              className="w-full text-lg font-bold h-12 rounded-xl"
-              onClick={(e) => {
-                addEvent(XP_TABLE[taskOf] ?? 0, e.clientX, e.clientY);
-                completeTasks([taskOf]);
-              }}
-            >
-              {kind === "new_hifz" ? "تم إنجاز الحفظ" : "تم الورد"}
-            </Button>
-          )}
-
-          {kind === "khatma_recite" && taskOf && (
-            <Button
-              size="lg"
-              className="w-full text-lg font-bold h-12 rounded-xl"
-              onClick={(e) => {
-                addEvent(XP_TABLE[taskOf] ?? 0, e.clientX, e.clientY);
-                completeTasks([taskOf]);
-              }}
-            >
-              تم إنجاز التلاوة
-            </Button>
-          )}
-
-          {kind === "khatma_listen" && taskOf && (
-            <Button
-              size="lg"
-              className="w-full text-lg font-bold h-12 rounded-xl"
-              onClick={(e) => {
-                addEvent(XP_TABLE[taskOf] ?? 0, e.clientX, e.clientY);
-                completeTasks([taskOf]);
-              }}
-            >
-              تم إنجاز الاستماع
-            </Button>
-          )}
-
-          {kind === "khatma" && (
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                size="lg"
-                variant="outline"
-                className="h-12 rounded-xl font-bold"
-                onClick={(e) => {
-                  addEvent(XP_TABLE.khatma_recite ?? 0, e.clientX, e.clientY);
-                  completeTasks(["khatma_recite"]);
-                }}
-              >
-                تمت التلاوة
-              </Button>
-              <Button
-                size="lg"
-                className="h-12 rounded-xl font-bold"
-                onClick={(e) => {
-                  addEvent(XP_TABLE.khatma_listen ?? 0, e.clientX, e.clientY);
-                  completeTasks(["khatma_listen"]);
-                }}
-              >
-                تم الاستماع
-              </Button>
-            </div>
-          )}
-
-          {(kind === "review_near" || kind === "review_far") && (
-            <>
-              <p className="text-sm text-muted-foreground text-center">كيف كان مستوى الحفظ؟</p>
-              <div className="grid grid-cols-3 gap-2">
-                <Button
-                  variant="outline"
-                  className="h-11 bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20"
-                  onClick={() => completeTasks(taskOf ? [taskOf] : [], "weak")}
-                >
-                  ضعيف
-                </Button>
-                <Button
-                  variant="outline"
-                  className="h-11 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 hover:bg-amber-500/20"
-                  onClick={() => completeTasks(taskOf ? [taskOf] : [], "good")}
-                >
-                  جيد
-                </Button>
-                <Button
-                  variant="outline"
-                  className="h-11 bg-f-near/10 text-f-near border-f-near/20 hover:bg-f-near/20"
-                  onClick={() => completeTasks(taskOf ? [taskOf] : [], "strong")}
-                >
-                  ممتاز
-                </Button>
-              </div>
-            </>
-          )}
-
-          {kind === "prep" && taskOf && (
-            <Button
-              size="lg"
-              className="w-full text-lg font-bold h-12 rounded-xl"
-              onClick={(e) => {
-                addEvent(XP_TABLE[taskOf] ?? 0, e.clientX, e.clientY);
-                completeTasks([taskOf]);
-              }}
-            >
-              إتمام التحضير
-            </Button>
-          )}
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-function SpanSection({
-  title,
-  rows,
-  arabic,
-}: {
-  title: string;
-  rows: SurahSpan[];
-  arabic: boolean;
-}) {
-  return (
-    <div className="bg-background/50 rounded-xl p-4 border border-border/50">
-      <p className="font-bold text-sm mb-2">{title}</p>
-      <ul className="space-y-1.5 text-sm">
-        {rows.map((row) => (
-          <li key={row.sura} className="flex items-center justify-between gap-2">
-            <span className="text-foreground/90">
-              {row.name} — من الآية {formatNum(row.fromAya, arabic)} إلى {formatNum(row.toAya, arabic)}
-            </span>
-          </li>
-        ))}
-      </ul>
+        {timer.done && <p role="status" className="text-sm text-primary text-center">انتهى وقت المؤقت؛ لا يُسجّل الإنجاز حتى تؤكده.</p>}
+      </section>
     </div>
-  );
+    <footer className="border-t border-border p-4 space-y-2 shrink-0">
+      {reviewing && target && !preview ? <>
+        <p className="text-sm text-muted-foreground text-center">قيّم هذا الثمن وحده ثم انتقل للتالي</p>
+        <div className="grid grid-cols-3 gap-2">{([["weak", "ضعيف"], ["good", "جيد"], ["strong", "متقن"]] as const).map(([rating, label]) => <Button key={rating} variant="outline" className="min-h-12" onClick={() => rate(rating)}>{label}</Button>)}</div>
+        {payload.kind === "free_review" && step > 0 && <Button variant="ghost" className="w-full" onClick={finish}>اكتفِ بما راجعته واحفظ الجلسة</Button>}
+      </> : <Button className="w-full min-h-12 text-base font-bold" disabled={reviewing && !preview && !ratedAll} onClick={finish}>{preview ? "حفظ وقت الدراسة الحرة" : reviewing ? payload.kind === "free_review" ? "حفظ التثبيت الحر" : "أتممت مراجعة جميع المواد" : payload.kind === "new_hifz" ? "أتممت حفظ الثمن" : payload.kind === "prep" ? "أتممت تحضير جميع المواد" : "أتممت الورد"}</Button>}
+    </footer>
+    {confirmLeave && <ConfirmModal title="إنهاء الجلسة؟" message="سيُحفظ الوقت الفعلي والمحاولات التي قيّمتها، دون إتمام بقية الورد أو إعادة ضبط المؤقت عند فتح المصحف." confirmLabel="احفظ الوقت وأنهِ" onClose={() => setConfirmLeave(false)} onConfirm={leave} />}
+  </AppModal>;
+}
+function ThumunStudy({ id, audio = false }: { id: number; audio?: boolean }) {
+  const state = useHifzStore(), status = useAppStatusStore(), openReader = useMushafStore((s) => s.openReader), t = getThumun(id)!;
+  const arabic = state.settings.arabicNumerals;
+  return <section className="rounded-2xl bg-surface p-4 space-y-3">
+    <h2 className="font-bold text-base break-words">{thumunTitle(t, arabic)}</h2><p className="text-sm text-muted-foreground">{thumunRangeLabel(t, arabic)}</p>
+    <p className="font-quran text-xl leading-loose">{t.partialStart ? "…" : ""}{t.text}</p>
+    <Button variant="outline" className="w-full min-h-11" onClick={() => openReader(id)}><BookOpen className="size-4" aria-hidden /> قراءة من المصحف</Button>
+    {audio && <QuranAudioPlayer mode="thumun" targetId={id} compact />}
+    <label className="text-sm block">ملاحظتك (تُحفظ محليًا)<textarea disabled={!!status.storageError || (!!state.ownerId && !status.cloudReadReady)} value={state.notes[id] ?? ""} maxLength={10000} onChange={(e) => state.setNote(id, e.target.value)} className="w-full mt-1 rounded-xl bg-background border border-border p-3 text-sm resize-y" rows={2} aria-label={`ملاحظتي على الثمن ${id}`} placeholder="موضع التباس أو تذكير…" /></label>
+  </section>;
 }

@@ -49,3 +49,8 @@ public/swe-worker*
 # external upstream datasets (fetch separately — see data/upstream/SOURCES.md)
 data/upstream/*.json
 /quran/
+
+# Local browser tooling / test artifacts
+.arena/
+test-results/
+playwright-report/

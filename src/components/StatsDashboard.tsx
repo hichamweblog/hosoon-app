@@ -1,242 +1,28 @@
 "use client";
-
-import { MILESTONES, SPECIAL_ACHIEVEMENTS } from "@/lib/constants";
-import { THUMUNS_PER_JUZ } from "@/lib/quran-data";
+import { BarChart3, BookOpen, CheckCircle2, Clock, Flame, Trophy } from "lucide-react";
+import { useHifzStore } from "@/store/useHifzStore";
+import { progressMetrics } from "@/lib/progress/derive";
 import { formatNum } from "@/lib/format";
-import { isDayCompleted, useHifzStore } from "@/store/useHifzStore";
+import { MILESTONES, SPECIAL_ACHIEVEMENTS } from "@/lib/constants";
 import ActivityHeatmap from "./ActivityHeatmap";
 import JourneyRoadmap from "./JourneyRoadmap";
-import { motion } from "framer-motion";
-import {
-  Award,
-  BookOpen,
-  Castle,
-  CheckCircle2,
-  Clock,
-  Coins,
-  Crown,
-  Flame,
-  Flower,
-  Gem,
-  Hammer,
-  Medal,
-  Mountain,
-  Share2,
-  Shield,
-  Sparkles,
-  Target,
-  Trophy,
-} from "lucide-react";
-import { useMemo } from "react";
-import { toast } from "sonner";
-
-const container = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.08 } },
-};
-const item = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { type: "spring" as const, damping: 20 } },
-};
-
-const MILESTONE_ICONS = { sprout: Flower, mountain: Mountain, shield: Shield, medal: Medal, award: Award, gem: Gem, crown: Crown, book: BookOpen };
-const ACHIEVEMENT_ICONS = { flame: Flame, shield: Shield, castle: Castle, hammer: Hammer, coins: Coins, sparkles: Sparkles, flower: Flower, clock: Clock };
-
 export default function StatsDashboard() {
-  const streak = useHifzStore((s) => s.streak);
-  const bestStreak = useHifzStore((s) => s.bestStreak);
-  const dailyLog = useHifzStore((s) => s.dailyLog);
-  const completedTasks = useHifzStore((s) => s.completedTasks);
-  const totalXp = useHifzStore((s) => s.totalXp);
-  const sessionLog = useHifzStore((s) => s.sessionLog);
-  const thumunRatings = useHifzStore((s) => s.thumunRatings);
-  const maintain = useHifzStore((s) => s.maintain) ?? { active: false, day: 1 };
-  const arabic = useHifzStore((s) => s.settings.arabicNumerals);
-
-  const highestDay = useMemo(() => {
-    const days = Object.keys(completedTasks)
-      .map(Number)
-      .filter((d) => Object.values(completedTasks[d] || {}).some(Boolean));
-    return days.length > 0 ? Math.max(...days) : 0;
-  }, [completedTasks]);
-
-  const totalCompleted = highestDay;
-  const completedDays = useMemo(
-    () => Object.values(completedTasks).filter((t) => isDayCompleted(t, maintain?.active)).length,
-    [completedTasks, maintain?.active],
-  );
-  const juzCount = Math.floor(totalCompleted / THUMUNS_PER_JUZ);
-
-  const nextMilestone =
-    MILESTONES.find((m) => totalCompleted < m.threshold) ?? MILESTONES[MILESTONES.length - 1];
-
-  const perfectDaysCount = Object.values(dailyLog || {}).filter((l) => l.days.length > 0).length;
-  const weakCount = Object.values(thumunRatings || {}).filter((r) => r === "weak").length;
-  const sessionMinutes = useMemo(() => {
-    const secs = Object.values(sessionLog || {})
-      .flat()
-      .reduce((acc, s) => acc + (s.seconds || 0), 0);
-    return Math.round(secs / 60);
-  }, [sessionLog]);
-
-  const shareStats = async () => {
-    const text = `أكملت ${juzCount} جزءاً (${totalCompleted} ثمناً) في مشروع حصون لحفظ القرآن — رواية ورش عن نافع.\nالسلسلة: ${streak} يوماً\nالهدف القادم: ${nextMilestone.label}\n\n«وَفِي ذَٰلِكَ فَلْيَتَنَافَسِ الْمُتَنَافِسُونَ»`;
-    try {
-      if (navigator.share) await navigator.share({ title: "حصون", text });
-      else {
-        await navigator.clipboard.writeText(text);
-        toast.success("تم نسخ الإحصائيات — شاركها مع أحبابك");
-      }
-    } catch {
-      /* cancelled */
-    }
-  };
-
-  const achievementsCtx = {
-    bestStreak,
-    perfectDays: perfectDaysCount,
-    totalXp,
-    highestDay: totalCompleted,
-    sessionMinutes,
-  };
-
-  return (
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6" dir="rtl">
-      {/* Top stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Stat icon={Trophy} tone="text-f-gold" label="الأجزاء المحفوظة" value={formatNum(juzCount, arabic)} sub={`/ ${formatNum(30, arabic)}`} />
-        <Stat icon={Target} tone="text-primary" label="أبعد محطة" value={formatNum(totalCompleted, arabic)} sub={`/ ${formatNum(480, arabic)} · أيام مكتملة: ${formatNum(completedDays, arabic)}`} />
-        <Stat icon={Coins} tone="text-f-gold" label="نقاط الخبرة" value={formatNum(totalXp || 0, arabic)} />
-        <Stat icon={Flame} tone="text-orange-500" label="السلسلة الحالية" value={formatNum(streak, arabic)} sub={`الأفضل: ${formatNum(bestStreak, arabic)}`} />
-        <Stat icon={Clock} tone="text-f-prep" label="وقت الجلسات" value={`${formatNum(sessionMinutes, arabic)} د`} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <motion.div variants={item} className="lg:col-span-2 min-w-0">
-          <ActivityHeatmap />
-        </motion.div>
-
-        <motion.div variants={item} className="glass-panel rounded-3xl p-6 border border-border/50 flex flex-col">
-          <h3 className="text-lg font-bold mb-1">الهدف القادم</h3>
-          <p className="text-sm text-muted-foreground mb-6">واصل التقدم للوصول للوسام التالي</p>
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-background/40 rounded-2xl border border-border/50">
-            <div className="w-16 h-16 rounded-full bg-f-gold/15 flex items-center justify-center text-f-gold mb-4">
-              {(() => {
-                const Icon = MILESTONE_ICONS[nextMilestone.icon];
-                return <Icon className="w-8 h-8" aria-hidden />;
-              })()}
-            </div>
-            <h4 className="font-bold text-lg mb-2">{nextMilestone.label}</h4>
-            <div className="w-full bg-muted rounded-full h-2.5 mb-2 overflow-hidden">
-              <div
-                className="bg-f-gold h-2.5 rounded-full"
-                style={{ width: `${Math.min(100, (totalCompleted / nextMilestone.threshold) * 100)}%` }}
-              />
-            </div>
-            <p className="text-sm text-muted-foreground">
-              متبقي {formatNum(Math.max(0, nextMilestone.threshold - totalCompleted), arabic)} أثمان
-            </p>
-            {weakCount > 0 && (
-              <p className="text-xs text-red-400 mt-3">{formatNum(weakCount, arabic)} أثمان تحتاج تثبيتاً</p>
-            )}
-          </div>
-          <button
-            onClick={shareStats}
-            className="mt-4 w-full py-2.5 rounded-xl bg-primary/10 text-primary font-bold text-sm hover:bg-primary/20 transition-colors flex items-center justify-center gap-2"
-          >
-            <Share2 className="w-4 h-4" aria-hidden /> مشاركة الإحصائيات
-          </button>
-        </motion.div>
-      </div>
-
-      <motion.div variants={item}>
-        <JourneyRoadmap totalCompleted={totalCompleted} />
-      </motion.div>
-
-      {/* Milestones */}
-      <motion.div variants={item}>
-        <h3 className="text-lg font-bold mb-4 px-2">أوسمة الإنجاز</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {MILESTONES.map((milestone) => {
-            const isEarned = totalCompleted >= milestone.threshold;
-            const Icon = MILESTONE_ICONS[milestone.icon];
-            return (
-              <div
-                key={milestone.id}
-                className={`relative p-4 rounded-2xl border ${
-                  isEarned ? "bg-card border-border/50 shadow-sm" : "bg-background/40 border-transparent opacity-50 grayscale"
-                }`}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <Icon className={`w-6 h-6 ${isEarned ? "text-f-gold" : "text-muted-foreground"}`} aria-hidden />
-                  {isEarned && <CheckCircle2 className="w-4 h-4 text-success" aria-hidden />}
-                </div>
-                <h4 className="font-bold text-sm mb-1">{milestone.label}</h4>
-                <p className="text-xs text-muted-foreground">{formatNum(milestone.threshold, arabic)} ثمناً</p>
-              </div>
-            );
-          })}
-        </div>
-      </motion.div>
-
-      {/* Achievements */}
-      <motion.div variants={item}>
-        <h3 className="text-lg font-bold mb-4 px-2">إنجازات خاصة</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {SPECIAL_ACHIEVEMENTS.map((a) => {
-            const isEarned = a.check(achievementsCtx);
-            const Icon = ACHIEVEMENT_ICONS[a.icon];
-            return (
-              <div
-                key={a.id}
-                className={`relative p-4 rounded-2xl border flex items-center gap-4 ${
-                  isEarned ? "bg-card border-border/50 shadow-sm" : "bg-background/40 border-transparent opacity-50 grayscale"
-                }`}
-              >
-                <div className="relative shrink-0">
-                  <Icon className={`w-8 h-8 ${isEarned ? "text-primary" : "text-muted-foreground"}`} aria-hidden />
-                  {isEarned && (
-                    <div className="absolute -bottom-1 -right-1 bg-background rounded-full" aria-hidden>
-                      <CheckCircle2 className="w-3.5 h-3.5 text-success" />
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm mb-0.5">{a.label}</h4>
-                  <p className="text-xs text-muted-foreground">{a.description}</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-function Stat({
-  icon: Icon,
-  tone,
-  label,
-  value,
-  sub,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  tone: string;
-  label: string;
-  value: string;
-  sub?: string;
-}) {
-  return (
-    <div className="glass-card-premium rounded-2xl p-4 border border-border/50">
-      <div className={`w-9 h-9 rounded-xl bg-surface flex items-center justify-center mb-2 ${tone}`}>
-        <Icon className="w-4.5 h-4.5" />
-      </div>
-      <p className="text-[11px] text-muted-foreground mb-0.5">{label}</p>
-      <div className="flex items-baseline gap-1.5">
-        <h3 className="text-2xl font-bold">{value}</h3>
-        {sub && <span className="text-[10px] text-muted-foreground">{sub}</span>}
-      </div>
-    </div>
-  );
+  const data = useHifzStore(), metrics = progressMetrics(data), arabic = data.settings.arabicNumerals;
+  const sessions = Object.values(data.sessions), seconds = sessions.reduce((n, s) => n + s.seconds, 0), minutes = Math.floor(seconds / 60);
+  const score = { bestStreak: data.bestStreak, perfectDays: metrics.perfectDays, totalXp: data.totalXp, highestDay: metrics.highest, zahrawayn: metrics.zahrawayn, sessionMinutes: minutes };
+  const cards = [{ title: "أثمان محفوظة", value: metrics.count, icon: BookOpen }, { title: "أيام ورد مكتملة", value: metrics.perfectDays, icon: CheckCircle2 }, { title: "سلسلة النشاط", value: data.streak, icon: Flame }, { title: "أفضل سلسلة", value: data.bestStreak, icon: Trophy }, { title: "النقاط الموثقة / المستوردة", value: data.totalXp, icon: BarChart3 }, { title: "دقائق الدراسة المسجلة", value: minutes, icon: Clock }];
+  const earned = MILESTONES.filter((m) => m.threshold === 480 ? metrics.count === 480 : metrics.juzs.length >= m.threshold / 16);
+  const next = MILESTONES.find((m) => !earned.includes(m));
+  const recent = [...sessions].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 12);
+  return <div className="space-y-4">
+    <h1 className="text-xl font-bold">إحصائياتك</h1><p className="text-sm text-muted-foreground">المحفوظ، نشاط الدراسة، وإتمام الورد ثلاثة أشياء مختلفة. لا يحتسب الجزء أو الحزب إلا باكتمال جميع أثمانه.</p>
+    <div className="grid grid-cols-2 gap-3">{cards.map(({ title, value, icon: Icon }) => <section key={title} className="surface-card p-4 space-y-2"><Icon className="size-5 text-primary" aria-hidden /><p className="text-2xl font-bold break-all">{formatNum(value, arabic)}</p><h2 className="text-sm text-muted-foreground">{title}</h2></section>)}</div>
+    <p className="text-xs text-muted-foreground leading-relaxed">النشاط: إنجاز جديد أو محاولة مراجعة فردية أو جلسة فعلية 30 ثانية فأكثر. يوم راحة واحد يحافظ على السلسلة ولا يضيف يومًا إليها. فك العلامة وإعادتها لا يضاعف النشاط.</p>
+    {data.legacyXp > 0 && <p className="rounded-xl bg-surface p-3 text-sm text-muted-foreground">{formatNum(data.legacyXp, arabic)} نقطة رصيد قديم محفوظ دون مضاعفة. الإنجازات القديمة ليست دليلًا على اكتمال أيام التقويم، ومحطات السجل القديم منفصلة عن أيام الورد المؤرخة.</p>}
+    <JourneyRoadmap memorized={metrics.ids} currentDay={data.currentDay} />
+    <section className="surface-card p-5 space-y-3"><h2 className="text-lg font-bold">مراحل المحفوظ</h2><p className="text-sm text-muted-foreground">الأجزاء المكتملة فعلًا: {formatNum(metrics.juzs.length, arabic)}/30 · الأحزاب: {formatNum(metrics.hizbs.length, arabic)}/60</p><div className="grid grid-cols-2 gap-2">{MILESTONES.map((m) => <article key={m.id} className={`rounded-xl border p-3 ${earned.includes(m) ? "border-primary bg-primary/10" : "border-border bg-surface"}`}><span className="text-xl" aria-hidden>{m.threshold === 480 ? "♛" : "◈"}</span><h3 className="font-bold text-sm mt-1">{m.label}</h3><p className="text-xs text-muted-foreground mt-1">{`${m.threshold / 16} أجزاء مكتملة`}</p><p className="text-xs mt-2">{earned.includes(m) ? "مكتمل" : "لم يكتمل"}</p></article>)}</div>{next && <p className="text-sm">المرحلة التالية: {next.label}. تحتاج {formatNum(Math.max(0, next.threshold / 16 - metrics.juzs.length), arabic)} أجزاء كاملة أخرى، وليس مجرد بلوغ رقم محطة.</p>}</section>
+    <section className="surface-card p-5 space-y-3"><h2 className="text-lg font-bold">شارات النشاط والرسوخ</h2><div className="grid grid-cols-2 gap-2">{SPECIAL_ACHIEVEMENTS.map((item) => <article key={item.id} className={`rounded-xl border p-3 ${item.check(score) ? "border-primary bg-primary/10" : "border-border bg-surface"}`}><span className="text-xl" aria-hidden>{item.check(score) ? "★" : "☆"}</span><h3 className="font-bold text-sm mt-1">{item.label}</h3><p className="text-xs text-muted-foreground mt-1">{item.description}</p><p className="text-xs mt-2">{item.check(score) ? "محققة" : "لم تتحقق"}</p></article>)}</div><p className="text-xs text-muted-foreground">الزهراوان تتطلب كل الأثمان التي تغطي البقرة وآل عمران (حتى الثمن 60) دون فجوات. الشارات ليست شهادة إتقان ديني.</p></section>
+    <ActivityHeatmap />
+    <section className="surface-card p-5 space-y-3"><h2 className="text-lg font-bold">آخر جلسات الدراسة</h2>{recent.length ? <ul className="space-y-2">{recent.map((s) => <li key={s.id} className="rounded-xl bg-surface p-3 text-sm"><b>{s.task === "free_review" ? "تثبيت / دراسة حرة" : s.task === "new_hifz" ? "حفظ" : s.task === "prep_weekly" ? "تحضير" : "ورد أو مراجعة"}</b><span className="block text-xs text-muted-foreground mt-1">{s.date} · محطة {formatNum(s.day, arabic)} · {formatNum(Math.floor(s.seconds / 60), arabic)} دقيقة و{formatNum(s.seconds % 60, arabic)} ثانية{s.abandoned ? " · توقفت دون إتمام الورد" : ""}</span></li>)}</ul> : <p className="text-sm text-muted-foreground">لم تُسجّل جلسات مؤقتة بعد. العلامات اليدوية لا تختلق وقت دراسة.</p>}</section>
+  </div>;
 }

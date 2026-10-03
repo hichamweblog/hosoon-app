@@ -1,132 +1,22 @@
 "use client";
-
+import { BookOpen } from "lucide-react";
 import { formatNum } from "@/lib/format";
 import { thumunShort, thumunTitle } from "@/lib/quran-labels";
 import type { Thumun } from "@/lib/quran-data";
 import { useHifzStore } from "@/store/useHifzStore";
 import { useMushafStore } from "@/store/useMushafStore";
-import { vibrateLight } from "@/lib/haptic";
-import { BookOpen } from "lucide-react";
-
-interface Props {
-  thumun: Thumun;
-  accentClass?: string;
-  onClick?: () => void;
-  actionLabel?: string;
-  showNote?: boolean;
-  compact?: boolean;
-  showReadButton?: boolean;
-}
-
-export default function ThumunCard({
-  thumun,
-  accentClass = "bg-primary text-primary-foreground",
-  onClick,
-  actionLabel,
-  showNote = true,
-  compact = false,
-  showReadButton = true,
-}: Props) {
-  const arabic = useHifzStore((s) => s.settings.arabicNumerals);
-  const note = useHifzStore((s) => s.notes[thumun.id]);
-  const rating = useHifzStore((s) => s.thumunRatings[thumun.id]);
-  const openReader = useMushafStore((s) => s.openReader);
-
-  const ratingChip =
-    rating === "weak"
-      ? { label: "يحتاج تثبيتاً", cls: "bg-red-500/10 text-red-500" }
-      : rating === "good"
-        ? { label: "جيد", cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400" }
-        : rating === "strong"
-          ? { label: "متقن", cls: "bg-f-near/10 text-f-near" }
-          : null;
-
-  return (
-    <div
-      className={`bg-surface rounded-xl p-4 ${onClick ? "cursor-pointer active:scale-[0.99] transition-transform" : ""}`}
-      onClick={onClick}
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
-      onKeyDown={
-        onClick
-          ? (e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onClick();
-              }
-            }
-          : undefined
-      }
-    >
-      <div className="flex items-start gap-3">
-        <div
-          className={`w-10 h-10 rounded-xl ${accentClass} flex items-center justify-center font-bold text-sm shrink-0 mt-0.5`}
-          aria-hidden
-        >
-          {formatNum(thumun.id, arabic)}
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <h4 className="font-bold text-base text-foreground truncate">
-            {thumunTitle(thumun, arabic)}
-          </h4>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {thumunShort(thumun, arabic)} · الجزء {formatNum(thumun.juz, arabic)} · الحزب{" "}
-            {formatNum(thumun.hizb, arabic)}
-          </p>
-          {thumun.text && !compact && (
-            <p className="font-quran text-foreground/80 text-base leading-loose mt-2 line-clamp-2">
-              {thumun.partialStart ? "…" : ""}
-              {thumun.text}
-            </p>
-          )}
-          <div className="flex items-center gap-2 mt-2 flex-wrap">
-            {ratingChip && (
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${ratingChip.cls}`}>
-                {ratingChip.label}
-              </span>
-            )}
-            {showNote && note && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-fgold/10 text-fgold">
-                ملاحظة
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {(showReadButton || actionLabel) && (
-        <div className="mt-4 flex items-center gap-2">
-          {showReadButton && (
-            <button
-              type="button"
-              className="flex-1 py-2.5 px-3 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-300 font-bold text-xs sm:text-sm hover:bg-amber-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 border border-amber-500/25"
-              onClick={(e) => {
-                e.stopPropagation();
-                vibrateLight();
-                openReader(thumun.id);
-              }}
-              aria-label={`قراءة ${thumunTitle(thumun, arabic)}`}
-            >
-              <BookOpen className="w-4 h-4 shrink-0" />
-              <span>قراءة الثمن</span>
-            </button>
-          )}
-
-          {actionLabel && (
-            <button
-              type="button"
-              className="flex-1 py-2.5 px-3 rounded-xl bg-primary/10 text-primary font-bold text-xs sm:text-sm hover:bg-primary/20 active:scale-[0.98] transition-all border border-primary/25"
-              onClick={(e) => {
-                e.stopPropagation();
-                onClick?.();
-              }}
-            >
-              {actionLabel}
-            </button>
-          )}
-        </div>
-      )}
+interface Props { thumun: Thumun; accentClass?: string; onClick?: () => void; actionLabel?: string; showNote?: boolean; compact?: boolean; showReadButton?: boolean }
+export default function ThumunCard({ thumun, accentClass = "bg-primary/10 text-primary", onClick, actionLabel, showNote = true, compact = false, showReadButton = true }: Props) {
+  const arabic = useHifzStore((s) => s.settings.arabicNumerals), note = useHifzStore((s) => s.notes[thumun.id]);
+  const rating = useHifzStore((s) => s.thumunRatings[thumun.id]), open = useMushafStore((s) => s.openReader);
+  return <article className="rounded-2xl bg-surface p-4 space-y-3">
+    <div className="flex gap-3"><span className={`size-10 rounded-xl shrink-0 grid place-items-center font-bold ${accentClass}`}>{formatNum(thumun.id, arabic)}</span><div className="min-w-0 space-y-1"><h3 className="font-semibold text-base break-words">{thumunTitle(thumun, arabic)}</h3><p className="text-sm text-muted-foreground">{thumunShort(thumun, arabic)}</p><p className="text-xs text-muted-foreground">الجزء {formatNum(thumun.juz, arabic)} · الحزب {formatNum(thumun.hizb, arabic)}</p></div></div>
+    {!compact && <p className="font-quran text-lg leading-loose">{thumun.partialStart ? "…" : ""}{thumun.text}</p>}
+    {rating && <p className="text-xs text-muted-foreground">آخر تقييم: {rating === "weak" ? "يحتاج تثبيتًا" : rating === "good" ? "جيد" : "متقن"}</p>}
+    {showNote && note && <p className="text-xs text-f-gold">لديك ملاحظة</p>}
+    <div className="flex flex-wrap gap-2">
+      {showReadButton && <button type="button" className="flex-1 min-h-11 rounded-xl border border-primary/30 text-primary font-semibold text-sm flex items-center justify-center gap-2" aria-label={`قراءة ${thumunTitle(thumun, arabic)}`} onClick={() => open(thumun.id)}><BookOpen className="size-4" aria-hidden /> قراءة الثمن</button>}
+      {onClick && <button type="button" className="flex-1 min-h-11 rounded-xl bg-primary/10 text-primary font-semibold text-sm px-3" onClick={onClick}>{actionLabel ?? "عرض التفاصيل"}</button>}
     </div>
-  );
+  </article>;
 }

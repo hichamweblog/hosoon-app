@@ -1,412 +1,75 @@
 "use client";
-
-import { MOTIVATIONAL_QUOTES, type TaskType, XP_TABLE } from "@/lib/constants";
+import { useEffect, useRef, useState } from "react";
+import { BookOpen, CheckCircle2, ChevronDown, Play, ArrowLeft } from "lucide-react";
+import { TASK_META, MOTIVATIONAL_QUOTES, type TaskType } from "@/lib/constants";
 import { formatNum } from "@/lib/format";
-import { vibrateLight, vibrateSuccess } from "@/lib/haptic";
-import { thumunShort, thumunTitle, hizbTitle } from "@/lib/quran-labels";
-import { formatHijriDate } from "@/lib/hijri";
 import type { FortressTasks } from "@/lib/fortress-calculator";
-import type { DailyTasks } from "@/store/useHifzStore";
-import { useHifzStore } from "@/store/useHifzStore";
-import { useSessionStore } from "@/store/useSessionStore";
-import { useXpStore } from "@/store/useXpStore";
-import confetti from "canvas-confetti";
-import { motion } from "framer-motion";
-import {
-  BookOpenCheck,
-  CheckCircle2,
-  ClipboardList,
-  Headphones,
-  History,
-  Sparkles,
-  Volume2,
-} from "lucide-react";
-import { useEffect, useRef } from "react";
-import { toast } from "sonner";
+import { thumunRangeLabel } from "@/lib/quran-labels";
+import { isDayCompleted, useHifzStore, type DailyTasks } from "@/store/useHifzStore";
+import { useSessionStore, type SessionInput } from "@/store/useSessionStore";
+import { useMushafStore } from "@/store/useMushafStore";
+import { celebrate } from "@/lib/effects";
+import { Button } from "../ui/button";
 import TaskCheckbox from "../ui/task-checkbox";
-import ThumunCard from "./ThumunCard";
-import QuranAudioPlayer from "../audio/QuranAudioPlayer";
+import { toast } from "sonner";
 
-interface Props {
-  tasks: FortressTasks;
-  dayTasks: DailyTasks;
-  currentDay: number;
+interface Props { tasks: FortressTasks; dayTasks: DailyTasks; currentDay: number }
+export function sessionForTask(task: TaskType, day: number, tasks: FortressTasks): SessionInput {
+  const base = { day, thumuns: [] as FortressTasks["prepWeekly"] };
+  if (task === "new_hifz") return { ...base, kind: "new_hifz", thumuns: tasks.newHifz ? [tasks.newHifz] : [] };
+  if (task === "prep_weekly") return { ...base, kind: "prep", thumuns: tasks.prepWeekly };
+  if (task === "review_near") return { ...base, kind: "review_near", thumuns: tasks.reviewNear };
+  if (task === "review_far") return { ...base, kind: "review_far", thumuns: tasks.reviewFar?.list ?? [] };
+  if (task === "khatma_listen") return { ...base, kind: "khatma_listen", listenHizbs: tasks.listenHizbs };
+  return { ...base, kind: task === "maintain_recite" ? "maintain_recite" : "khatma_recite", reciteJuzs: tasks.reciteJuzs };
 }
-
-const TONE: Record<string, string> = {
-  khatma: "text-f-khatma",
-  prep: "text-f-prep",
-  new: "text-f-new",
-  near: "text-f-near",
-  far: "text-f-far",
-};
+const ACTIONS: Record<TaskType, string> = { new_hifz: "ابدأ الحفظ", khatma_recite: "ابدأ التلاوة", khatma_listen: "ابدأ الاستماع", prep_weekly: "حضّر الأثمان", review_near: "راجع القريب", review_far: "راجع البعيد", maintain_recite: "ابدأ ورد التثبيت", free_review: "ثبّت المحفوظ" };
 
 export default function HomeTab({ tasks, dayTasks, currentDay }: Props) {
-  const toggle = useHifzStore((s) => s.toggleTask);
-  const advanceDayFn = useHifzStore((s) => s.advanceDay);
-  const maintain = useHifzStore((s) => s.maintain) ?? { active: false, day: 1 };
-  const arabic = useHifzStore((s) => s.settings.arabicNumerals);
-  const openSession = useSessionStore((s) => s.open);
-  const addEvent = useXpStore((s) => s.addEvent);
-  const celebratedRef = useRef(false);
-
-  const quote = MOTIVATIONAL_QUOTES[currentDay % MOTIVATIONAL_QUOTES.length];
-
-  const isAllDone =
-    tasks.taskKeys.length > 0 && tasks.taskKeys.every((k) => dayTasks[k]);
-
+  const state = useHifzStore(), open = useSessionStore((s) => s.open), openReader = useMushafStore((s) => s.openReader);
+  const [expanded, setExpanded] = useState<TaskType | null>(null);
+  const completed = isDayCompleted(dayTasks, tasks.taskKeys), celebrated = useRef(false);
+  const next = tasks.taskKeys.find((key) => !dayTasks[key]);
+  const arabic = state.settings.arabicNumerals;
   useEffect(() => {
-    if (isAllDone && !celebratedRef.current) {
-      celebratedRef.current = true;
-      toast.success("تم إنجاز مهام هذا اليوم!", { description: "تقبل الله منك." });
-      setTimeout(
-        () =>
-          confetti({
-            particleCount: 110,
-            spread: 90,
-            origin: { y: 0.6 },
-            colors: ["#3C8268", "#B8893C", "#FFFFFF"],
-          }),
-        300,
-      );
-    }
-    if (!isAllDone) celebratedRef.current = false;
-  }, [isAllDone]);
-
-  const check = (task: TaskType, e: React.MouseEvent) => {
-    if (!dayTasks[task]) addEvent(XP_TABLE[task] ?? 0, e.clientX, e.clientY);
-    toggle(currentDay, task);
+    if (completed && !celebrated.current) { celebrated.current = true; toast.success("أتممت ورد هذا اليوم — تقبل الله منك"); void celebrate(); }
+    if (!completed) celebrated.current = false;
+  }, [completed]);
+  const description = (task: TaskType) => {
+    if (task === "new_hifz" && tasks.newHifz) return thumunRangeLabel(tasks.newHifz, arabic);
+    if (task === "khatma_recite" || task === "maintain_recite") return `الجزء ${tasks.reciteJuzs.map((id) => formatNum(id, arabic)).join("، ")}`;
+    if (task === "khatma_listen") return `الحزب ${tasks.listenHizbs.map((id) => formatNum(id, arabic)).join("، ")}`;
+    const list = task === "prep_weekly" ? tasks.prepWeekly : task === "review_near" ? tasks.reviewNear : tasks.reviewFar?.list ?? [];
+    const sorted = [...list].sort((a, b) => a.id - b.id);
+    return sorted.length ? `${formatNum(sorted.length, arabic)} أثمان · من ${formatNum(sorted[0].id, arabic)} إلى ${formatNum(sorted.at(-1)!.id, arabic)}` : "";
   };
-
-  const handleAdvance = () => {
-    vibrateSuccess();
-    confetti({
-      particleCount: 150,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ["#3C8268", "#B8893C", "#3E7CB1", "#5B5FA8"],
-      zIndex: 9999,
-    });
-    advanceDayFn();
-    celebratedRef.current = false;
-    toast("تم الانتقال للثمن التالي", {
-      description: `من الرياحين إلى الياسمين — ${formatHijriDate(new Date(), arabic)}`,
-    });
-  };
-
-  return (
-    <div className="space-y-5">
-      {/* Quote */}
-      <div className="text-center py-4 px-3">
-        <p className="font-quran text-foreground/90 text-xl sm:text-2xl leading-[2.1]">
-          &laquo;{quote.text}&raquo;
-        </p>
-        <p className="text-xs text-muted-foreground mt-2">— {quote.source}</p>
+  return <div className="space-y-4">
+    <section className="surface-card p-5 border-primary/40" aria-label="الخطوة التالية">
+      <p className="text-sm font-semibold text-primary mb-2">{next ? "خطوتك التالية" : "ورد اليوم مكتمل"}</p>
+      <h2 className="text-xl font-bold">{next ? TASK_META[next].label : "أحسنت، خذ وقتك للرسوخ"}</h2>
+      <p className="text-sm text-muted-foreground leading-relaxed mt-1">{next ? description(next) : "لا نحتاج لتسريع المحطة. يمكنك العودة للمصحف أو مراجعة إضافية."}</p>
+      {next ? <Button className="mt-4 w-full h-12 text-base font-bold rounded-xl" onClick={() => open(sessionForTask(next, currentDay, tasks))}><Play className="size-4" aria-hidden />{ACTIONS[next]}</Button> : <Button variant="outline" className="mt-4 w-full h-12" onClick={() => openReader(state.currentDay)}><BookOpen className="size-4" aria-hidden /> افتح المصحف</Button>}
+    </section>
+    {state.memorization[state.currentDay]?.memorized && state.currentDay < 480 && <Button variant="outline" className="w-full h-auto min-h-12 whitespace-normal" onClick={() => { state.advanceDay(); toast.info("انتقلت محطة الحفظ. يبقى ورد اليوم ومواده كما هو؛ الثمن الجديد يُدرج في يوم جديد."); }}>انتقل إلى محطة الحفظ التالية <ArrowLeft className="size-4" aria-hidden /></Button>}
+    <section className="surface-card p-4" aria-label="مهام ورد اليوم">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2"><h2 className="font-bold text-lg">حصون اليوم</h2><span className="text-sm text-muted-foreground">تسجيل ذاتي بعد إنجاز المادة</span></div>
+      <div className="divide-y divide-border">
+        {tasks.taskKeys.map((task) => <div key={task} className="py-3 space-y-2">
+          <div className="flex items-center gap-3">
+            <TaskCheckbox checked={dayTasks[task] === true} label={`تم ${TASK_META[task].label}`} onToggle={() => state.toggleTask(currentDay, task)} />
+            <div className="flex-1 min-w-0"><p className={`font-semibold text-sm ${dayTasks[task] ? "text-muted-foreground" : ""}`}>{TASK_META[task].label}</p><p className="text-xs text-muted-foreground leading-relaxed">{description(task)}</p></div>
+            <button className="size-11 rounded-xl grid place-items-center shrink-0 hover:bg-muted" aria-label={`تفاصيل ${TASK_META[task].label}`} aria-expanded={expanded === task} onClick={() => setExpanded(expanded === task ? null : task)}><ChevronDown className={`size-4 ${expanded === task ? "rotate-180" : ""}`} aria-hidden /></button>
+          </div>
+          {expanded === task && <div className="p-3 rounded-xl bg-surface space-y-2">
+            <p className="text-sm text-muted-foreground">{TASK_META[task].hint}</p><Button variant="outline" className="w-full min-h-11" onClick={() => open(sessionForTask(task, currentDay, tasks))}>{ACTIONS[task]}</Button>
+          </div>}
+        </div>)}
       </div>
-
-      {maintain?.active ? (
-        <MaintainCard />
-      ) : (
-        <>
-          {/* ─── الحصن الأول: الختمة ─── */}
-          <FortressCard
-            title="الختمة"
-            hint="تلاوة جزء + سماع حزب"
-            tone="khatma"
-          >
-            <TaskRow
-              label={`تلاوة ${tasks.reciteJuzs.length > 1 ? "الأجزاء" : "الجزء"} ${tasks.reciteJuzs
-                .map((j) => formatNum(j, arabic))
-                .join("، ")}`}
-              sub={spanLabel(tasks.reciteSpan, arabic)}
-              checked={!!dayTasks.khatma_recite}
-              task="khatma_recite"
-              onCheck={check}
-              icon={<BookOpenCheck className="w-4 h-4" />}
-              onSession={() =>
-                openSession({
-                  kind: "khatma_recite",
-                  day: currentDay,
-                  thumuns: [],
-                  reciteJuzs: tasks.reciteJuzs,
-                })
-              }
-            />
-            <TaskRow
-              label={`سماع ${tasks.listenHizbs.length > 1 ? "الأحزاب" : "الحزب"} ${tasks.listenHizbs
-                .map((h) => hizbTitle(h, arabic))
-                .join(" · ")}`}
-              sub={spanLabel(tasks.listenSpan, arabic)}
-              checked={!!dayTasks.khatma_listen}
-              task="khatma_listen"
-              onCheck={check}
-              icon={<Volume2 className="w-4 h-4" />}
-              onSession={() =>
-                openSession({
-                  kind: "khatma_listen",
-                  day: currentDay,
-                  thumuns: [],
-                  listenHizbs: tasks.listenHizbs,
-                })
-              }
-            />
-          </FortressCard>
-
-          {/* ─── الحصن الثاني: التحضير ─── */}
-          {tasks.prepWeekly.length > 0 && (
-            <FortressCard title="التحضير" hint="الأثمان الثمانية القادمة" tone="prep">
-              <TaskRow
-                label="تحضير أسبوعي"
-                sub={tasks.prepWeekly.length > 0 ? thumunShort(tasks.prepWeekly[0], arabic) : ""}
-                checked={!!dayTasks.prep_weekly}
-                task="prep_weekly"
-                onCheck={check}
-                icon={<ClipboardList className="w-4 h-4" />}
-                onSession={() =>
-                  openSession({ kind: "prep", day: currentDay, thumuns: tasks.prepWeekly })
-                }
-              />
-            </FortressCard>
-          )}
-
-          {/* ─── الحصن الثالث: الحفظ الجديد ─── */}
-          {tasks.newHifz && (
-            <div className="surface-card p-5">
-              <div className="flex items-center justify-between mb-4">
-                <TaskCheckbox
-                  checked={!!dayTasks.new_hifz}
-                  label="تم إنجاز الحفظ الجديد"
-                  onToggle={(e) => check("new_hifz", e)}
-                />
-                <h3 className="font-bold text-lg flex items-center gap-2">
-                  الحفظ الجديد
-                  <Sparkles className="w-5 h-5 text-f-new" aria-hidden />
-                </h3>
-              </div>
-              <ThumunCard
-                thumun={tasks.newHifz}
-                accentClass="bg-f-new text-accent-foreground"
-                onClick={() =>
-                  openSession({ kind: "new_hifz", day: currentDay, thumuns: [tasks.newHifz!] })
-                }
-                actionLabel={dayTasks.new_hifz ? undefined : "ابدأ الجلسة"}
-              />
-              <div className="mt-3">
-                <QuranAudioPlayer
-                  mode="thumun"
-                  targetId={tasks.newHifz.id}
-                  title={`استماع ${thumunTitle(tasks.newHifz, arabic)}`}
-                  subtitle="سماع وتكرار ثمن الحفظ الجديد"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* ─── الحصن الرابع: مراجعة القريب ─── */}
-          {tasks.reviewNear.length > 0 && (
-            <FortressCard
-              title="مراجعة القريب"
-              hint="آخر ثمانية أثمان (حزب واحد)"
-              tone="near"
-            >
-              <TaskRow
-                label={`${thumunShort(tasks.reviewNear[tasks.reviewNear.length - 1], arabic)}`}
-                sub={`إلى ${thumunShort(tasks.reviewNear[0], arabic)}`}
-                checked={!!dayTasks.review_near}
-                task="review_near"
-                  onCheck={check}
-                icon={<History className="w-4 h-4" />}
-                onSession={() =>
-                  openSession({
-                    kind: "review_near",
-                    day: currentDay,
-                    thumuns: tasks.reviewNear,
-                  })
-                }
-              />
-            </FortressCard>
-          )}
-
-          {/* ─── الحصن الخامس: مراجعة البعيد ─── */}
-          {tasks.reviewFar && (
-            <FortressCard title="مراجعة البعيد" hint="نافذة دوّارة على المتقدم" tone="far">
-              <TaskRow
-                label={`من ${thumunShort(tasks.reviewFar.start, arabic)}`}
-                sub={`إلى ${thumunShort(tasks.reviewFar.end, arabic)}`}
-                checked={!!dayTasks.review_far}
-                task="review_far"
-                  onCheck={check}
-                icon={<Headphones className="w-4 h-4" />}
-                onSession={() =>
-                  openSession({
-                    kind: "review_far",
-                    day: currentDay,
-                    thumuns: tasks.reviewFar!.list,
-                  })
-                }
-              />
-            </FortressCard>
-          )}
-        </>
-      )}
-
-      {/* Advance */}
-      {isAllDone && !maintain?.active && (
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="pt-2">
-          <button
-            onClick={handleAdvance}
-            className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-bold text-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
-          >
-            {currentDay >= 480 ? "ختمت القرآن — بارك الله فيك" : "إتمام الثمن والانتقال للتالي"}
-            <CheckCircle2 className="w-5 h-5" aria-hidden />
-          </button>
-        </motion.div>
-      )}
-    </div>
-  );
-}
-
-function spanLabel(
-  rows: { name: string; fromAya: number; toAya: number }[],
-  arabic: boolean,
-) {
-  if (rows.length === 0) return "";
-  const a = rows[0];
-  const b = rows[rows.length - 1];
-  return rows.length === 1
-    ? `${a.name} ${formatNum(a.fromAya, arabic)}–${formatNum(a.toAya, arabic)}`
-    : `${a.name} ${formatNum(a.fromAya, arabic)} ← ${b.name} ${formatNum(b.toAya, arabic)}`;
-}
-
-const DOT_CLASS: Record<string, string> = {
-  khatma: "bg-f-khatma",
-  prep: "bg-f-prep",
-  new: "bg-f-new",
-  near: "bg-f-near",
-  far: "bg-f-far",
-};
-
-function FortressCard({
-  title,
-  hint,
-  tone,
-  children,
-}: {
-  title: string;
-  hint: string;
-  tone: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="surface-card p-5">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-[11px] text-muted-foreground">{hint}</span>
-        <h3 className="font-bold text-lg flex items-center gap-2">
-          {title}
-          <span className={`w-2.5 h-2.5 rounded-full ${DOT_CLASS[tone] ?? DOT_CLASS.new}`} aria-hidden />
-        </h3>
-      </div>
-      <div className="space-y-3">{children}</div>
-    </motion.div>
-  );
-}
-
-function TaskRow({
-  label,
-  sub,
-  checked,
-  task,
-  onCheck,
-  icon,
-  onSession,
-}: {
-  label: string;
-  sub: string;
-  checked: boolean;
-  task: TaskType;
-  onCheck: (task: TaskType, e: React.MouseEvent) => void;
-  icon: React.ReactNode;
-  onSession: () => void;
-}) {
-  return (
-    <div className="bg-surface rounded-xl p-3.5 flex items-center gap-3">
-      <TaskCheckbox
-        checked={checked}
-        label={label}
-        onToggle={(e) => onCheck(task, e)}
-        size="sm"
-      />
-      <div className="flex-1 min-w-0">
-        <p className={`font-bold text-sm flex items-center gap-1.5 ${TONE[task === "khatma_recite" || task === "khatma_listen" ? "khatma" : task === "prep_weekly" ? "prep" : task === "review_near" ? "near" : task === "review_far" ? "far" : "new"]}`}>
-          {icon}
-          {label}
-        </p>
-        {sub && <p className="text-xs text-muted-foreground truncate mt-0.5">{sub}</p>}
-      </div>
-      {!checked && (
-        <button
-          type="button"
-          onClick={() => {
-            vibrateLight();
-            onSession();
-          }}
-          className="text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 rounded-full px-3 py-1.5 shrink-0 transition-colors"
-        >
-          جلسة
-        </button>
-      )}
-    </div>
-  );
-}
-
-function MaintainCard() {
-  const maintain = useHifzStore((s) => s.maintain) ?? { active: false, day: 1 };
-  const dayTasks = useHifzStore((s) => s.completedTasks[s.currentDay]) || {};
-  const currentDay = useHifzStore((s) => s.currentDay);
-  const toggle = useHifzStore((s) => s.toggleTask);
-  const arabic = useHifzStore((s) => s.settings.arabicNumerals);
-  const openSession = useSessionStore((s) => s.open);
-  const day = typeof maintain.day === "number" && maintain.day > 0 ? maintain.day : 1;
-  const juz = ((day - 1) % 30) + 1;
-  return (
-    <div className="surface-card p-5">
-      <h3 className="font-bold text-lg mb-1">الختمة التثبيتية</h3>
-      <p className="text-xs text-muted-foreground mb-4">
-        وردك اليومي للحفاظ على الرسوخ — جزء كل يوم
-      </p>
-      <div className="bg-surface rounded-xl p-3.5 flex items-center gap-3">
-        <TaskCheckbox
-          checked={!!dayTasks.maintain_recite}
-          label="تم الورد التثبيتي"
-          onToggle={(e) => {
-            if (!dayTasks.maintain_recite) {
-              const addEvent = useXpStore.getState().addEvent;
-              addEvent(XP_TABLE.maintain_recite, e.clientX, e.clientY);
-            }
-            toggle(currentDay, "maintain_recite");
-          }}
-          size="sm"
-        />
-        <div className="flex-1">
-          <p className="font-bold text-sm">تلاوة الجزء {formatNum(juz, arabic)}</p>
-        </div>
-        {!dayTasks.maintain_recite && (
-          <button
-            type="button"
-            onClick={() =>
-              openSession({
-                kind: "maintain_recite",
-                day: currentDay,
-                thumuns: [],
-                reciteJuzs: [juz],
-              })
-            }
-            className="text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 rounded-full px-3 py-1.5"
-          >
-            جلسة
-          </button>
-        )}
-      </div>
-    </div>
-  );
+      {completed && <p className="flex items-center gap-2 text-primary text-sm mt-3"><CheckCircle2 className="size-4" aria-hidden /> كل مهام الخطة الفعلية مكتملة</p>}
+    </section>
+    {tasks.taskKeys.includes("new_hifz") && !dayTasks.new_hifz && <button className="w-full rounded-xl border border-border p-3 text-sm text-muted-foreground min-h-11" onClick={() => { if (state.setReviewOnlyToday(true)) toast.info("أُجّل الحفظ الجديد. ورد التلاوة والمراجعة مستمر، ومحطة الحفظ لم تتغير."); }}>اليوم للمراجعة — أجّل الجديد فقط</button>}
+    {state.dailyPlans[Object.keys(state.dailyPlans).sort().at(-1) ?? ""]?.reviewOnly && <button className="w-full text-sm text-primary min-h-11" onClick={() => state.setReviewOnlyToday(false)}>إعادة الحفظ الجديد إلى ورد اليوم</button>}
+    {state.maintain.active && <p className="rounded-xl bg-primary/10 p-3 text-sm text-muted-foreground">مرحلة التثبيت مفعّلة؛ {state.maintain.startedOn} بداية الدورة. سجلات الرحلة السابقة محفوظة.</p>}
+    <blockquote className="text-center p-4 text-sm text-muted-foreground leading-loose"><p className="font-quran text-lg text-foreground">«{MOTIVATIONAL_QUOTES[currentDay % MOTIVATIONAL_QUOTES.length].text}»</p><cite className="not-italic">{MOTIVATIONAL_QUOTES[currentDay % MOTIVATIONAL_QUOTES.length].source}</cite></blockquote>
+  </div>;
 }

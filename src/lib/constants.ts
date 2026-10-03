@@ -7,7 +7,8 @@ export type TaskType =
   | "new_hifz"
   | "review_near"
   | "review_far"
-  | "maintain_recite";
+  | "maintain_recite"
+  | "free_review";
 
 export const XP_TABLE: Record<TaskType | "day_bonus", number> = {
   khatma_recite: 15,
@@ -17,6 +18,7 @@ export const XP_TABLE: Record<TaskType | "day_bonus", number> = {
   review_near: 20,
   review_far: 20,
   maintain_recite: 15,
+  free_review: 0,
   day_bonus: 25,
 };
 
@@ -71,6 +73,13 @@ export const TASK_META: Record<TaskType, TaskMeta> = {
     hint: "المرور الدوري على المتقدم",
     tone: "far",
   },
+  free_review: {
+    label: "التثبيت الحر",
+    shortLabel: "تثبيت إضافي",
+    fortress: "التثبيت الحر",
+    hint: "مراجعة إضافية لا تستبدل المراجعة المخططة",
+    tone: "near",
+  },
   maintain_recite: {
     label: "الورد التثبيتي",
     shortLabel: "التثبيت",
@@ -115,6 +124,7 @@ export interface Achievement {
     perfectDays: number;
     totalXp: number;
     highestDay: number;
+    zahrawayn: boolean;
     sessionMinutes: number;
   }) => boolean;
 }
@@ -123,21 +133,21 @@ export const SPECIAL_ACHIEVEMENTS: Achievement[] = [
   {
     id: "streak_7",
     label: "شعلة لا تنطفئ",
-    description: "الاستمرار 7 أيام متتالية",
+    description: "سلسلة 7 أيام نشاط مع سياسة الراحة المعلنة",
     icon: "flame",
     check: (s) => s.bestStreak >= 7,
   },
   {
     id: "streak_30",
     label: "أسد الحصون",
-    description: "الاستمرار 30 يوماً بلا انقطاع",
+    description: "سلسلة 30 يوم نشاط مع سياسة الراحة المعلنة",
     icon: "shield",
     check: (s) => s.bestStreak >= 30,
   },
   {
     id: "streak_100",
     label: "المعسكر المغلق",
-    description: "الاستمرار 100 يوم متتالية",
+    description: "سلسلة 100 يوم نشاط مع سياسة الراحة المعلنة",
     icon: "castle",
     check: (s) => s.bestStreak >= 100,
   },
@@ -174,7 +184,7 @@ export const SPECIAL_ACHIEVEMENTS: Achievement[] = [
     label: "حارس الزهراوين",
     description: "إتمام سورتي البقرة وآل عمران",
     icon: "flower",
-    check: (s) => s.highestDay >= 105,
+    check: (s) => s.zahrawayn,
   },
   {
     id: "time_10h",

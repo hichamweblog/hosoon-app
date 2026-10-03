@@ -178,9 +178,7 @@ export function getFortressTasks(
       reviewNear: [],
       reviewFar: null,
       weakList,
-      taskKeys: weakList.length > 0
-        ? ["maintain_recite", "review_near"]
-        : ["maintain_recite"],
+      taskKeys: ["maintain_recite"],
     };
   }
 

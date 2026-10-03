@@ -14,6 +14,7 @@ export interface MushafPageInfo {
   juz: number;
   title: string;
   thumun?: Thumun | null;
+  sharedThumunIds: number[];
 }
 
 /**
@@ -82,8 +83,17 @@ export function getMushafPageTitle(pageNumber: number): string {
 /**
  * Returns complete metadata for a given page.
  */
-export function getMushafPageInfo(pageNumber: number): MushafPageInfo {
-  const thumunId = getThumunFromMushafPage(pageNumber);
+export function getThumunsOnMushafPage(pageNumber: number): number[] {
+  if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > TOTAL_MUSHAF_PAGES) return [];
+  if (pageNumber === 480) return [477, 478];
+  if (pageNumber === 481) return [478, 479];
+  if (pageNumber === 483) return [479, 480];
+  return [getThumunFromMushafPage(pageNumber)];
+}
+
+export function getMushafPageInfo(pageNumber: number, selectedThumun?: number): MushafPageInfo {
+  const sharedThumunIds = getThumunsOnMushafPage(pageNumber);
+  const thumunId = selectedThumun && sharedThumunIds.includes(selectedThumun) ? selectedThumun : getThumunFromMushafPage(pageNumber);
   const thumun = getThumun(thumunId);
   return {
     pageNumber,
@@ -93,5 +103,6 @@ export function getMushafPageInfo(pageNumber: number): MushafPageInfo {
     juz: thumun?.juz ?? Math.ceil(thumunId / 16),
     title: getMushafPageTitle(pageNumber),
     thumun,
+    sharedThumunIds,
   };
 }

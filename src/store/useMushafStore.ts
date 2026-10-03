@@ -43,7 +43,8 @@ export const useMushafStore = create<MushafStoreState>()(
       showAudio: false,
 
       openReader: (thumunId: number, startPage?: number) => {
-        const safeThumun = Math.max(1, Math.min(TOTAL_ATHMAN, thumunId));
+        if (!Number.isInteger(thumunId) || thumunId < 1 || thumunId > TOTAL_ATHMAN) return;
+        const safeThumun = thumunId;
         const pages = getMushafPagesForThumun(safeThumun);
         const page = startPage && pages.includes(startPage) ? startPage : pages[0] || 1;
         set({
@@ -71,8 +72,10 @@ export const useMushafStore = create<MushafStoreState>()(
       },
 
       setPage: (pageNumber: number) => {
+        if (!Number.isInteger(pageNumber)) return;
         const safePage = Math.max(1, Math.min(TOTAL_MUSHAF_PAGES, pageNumber));
-        const thumunId = getThumunFromMushafPage(safePage);
+        const current = get();
+        const thumunId = current.thumunPages.includes(safePage) ? current.thumunId : getThumunFromMushafPage(safePage);
         const pages = getMushafPagesForThumun(thumunId);
         set({
           currentPage: safePage,

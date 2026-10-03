@@ -1,3 +1,5 @@
+> **تنبيه — 2 أكتوبر 2026:** هذا تقرير تاريخي؛ عولجت بالفعل عدة ملاحظات فيه، ولا تصف كلها النسخة الحالية. للمراجعة المحدثة والأدلة وخطة التنفيذ راجع [المراجعة العربية الحالية](docs/APP_REVIEW_AR.md) و[خطة التحسين العملية](docs/IMPROVEMENT_PLAN_AR.md).
+
 # حصون (Hosoon) — Full Product & Code Review
 
 **Scope:** whole repository (Next.js 16 + React 19 PWA, Zustand, Supabase, Tailwind v4) — UI/UX, Logic, Features, Data, Performance, Accessibility, Code Health.

@@ -1,444 +1,323 @@
-import { XP_TABLE, type TaskType } from "@/lib/constants";
-import { daysBetweenLocal, localDateKey } from "@/lib/format";
-import { TOTAL_THUMUNS, type EditedThumuns } from "@/lib/quran-data";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
+import type { TaskType } from "@/lib/constants";
+import { localDateKey } from "@/lib/format";
+import { newId, nextStamp } from "@/lib/progress/clock";
+import { deriveProgress, emptyProgress } from "@/lib/progress/derive";
+import { completionId, makeDailyPlan, materialIds, memorizedIds, tasksForPlan } from "@/lib/progress/plan";
+import { correctionDraftSchema, parseProgress, settingsSchema } from "@/lib/progress/schema";
+import { migrateProgress } from "@/lib/progress/migrate";
+import { progressStorage, readWorkspace, backupCurrent, peekWorkspace, hasCloudProof, storageKey, writeWorkspace } from "@/lib/progress/storage";
+import { PROGRESS_VERSION, snapshotOf, type DailyPlan, type ProgressData, type Settings, type ThumunRating } from "@/lib/progress/types";
+import { useAppStatusStore } from "./useAppStatusStore";
+import type { SessionPayload } from "./useSessionStore";
 
 export type { TaskType };
+export type { DailyTasks, DailyLogEntry, SessionEntry, Settings, ThumunRating, ProgressData } from "@/lib/progress/types";
+export { isDayCompleted } from "@/lib/progress/plan";
 
-export interface DailyTasks {
-  [taskType: string]: boolean;
-}
-
-export interface DailyLogEntry {
-  date: string; // LOCAL YYYY-MM-DD
-  days: number[]; // journey days worked this calendar day
-  tasks: number; // tasks credited today (heatmap intensity)
-}
-
-export interface SessionEntry {
-  task: TaskType;
-  day: number;
-  seconds: number;
-  at: string;
-}
-
-export type ThumunRating = "weak" | "good" | "strong";
-
-export interface Settings {
-  reminderTime: string | null; // "HH:MM" or null
-  arabicNumerals: boolean;
-  hizbReciterId: string; // "husary" | "abdulbasit" | "benkiran"
-  thumunReciterId: string; // "sayed" | "hassaine" | "qazabri_fast" | "sayed_fast" | "benkiran_fast"
-  reciterId?: string; // legacy fallback
-  /** وتيرة الختمة: أجزاء التلاوة في اليوم (1..3) */
-  reciteJuzPerDay: number;
-  /** وتيرة الختمة: أحزاب الاستماع في اليوم (1..3) */
-  listenHizbPerDay: number;
-}
-
-/** مهام الرحلة الست (الحصون الخمسة — حصنا المراجعة مهمتان) */
-export const JOURNEY_TASKS: TaskType[] = [
-  "khatma_recite",
-  "khatma_listen",
-  "prep_weekly",
-  "new_hifz",
-  "review_near",
-  "review_far",
-];
-
-/**
- * مُوحَّد: اليوم مكتمل iff كل مهامه متُمة (لا "أي مهمة" ولا "وجود سجل").
- * §4.1 — يُستعمل في كل الواجهات.
- */
-export function isDayCompleted(tasks: DailyTasks | undefined, maintain = false): boolean {
-  if (!tasks) return false;
-  const keys: TaskType[] = maintain ? ["maintain_recite"] : JOURNEY_TASKS;
-  return keys.every((k) => !!tasks[k]);
-}
-
-interface HifzState {
-  // Journey
-  currentDay: number;
-  startDate: string;
-  completedTasks: Record<number, DailyTasks>;
-  khatmaCompletedAt: string | null;
-  maintain: { active: boolean; day: number };
-
-  // Streak (credited on activity, LOCAL dates)
-  streak: number;
-  bestStreak: number;
-  lastActiveDate: string;
-
-  // Logs
-  dailyLog: Record<string, DailyLogEntry>;
-  sessionLog: Record<string, SessionEntry[]>;
-
-  // Per-thumun data
-  notes: Record<number, string>;
-  thumunRatings: Record<number, ThumunRating>;
-  editedThumuns: EditedThumuns;
-
-  // Meta
-  showOnboarding: boolean;
-  totalXp: number;
-  settings: Settings;
+export interface HifzState extends ProgressData {
   lastCloudSyncAt: string | null;
-
-  // Actions
-  toggleTask: (day: number, task: TaskType) => void;
+  ensureTodayPlan: (date?: string) => void;
+  toggleTask: (day: number, task: TaskType, date?: string) => boolean;
+  completeTask: (day: number, task: TaskType, date?: string, performedIds?: number[]) => boolean;
   toggleDayCompletion: (day: number) => void;
   markRangeComplete: (upToDay: number) => void;
+  setMemorized: (id: number, memorized: boolean) => void;
+  declarePriorMemorization: (ids: number[]) => void;
   advanceDay: () => void;
-  setNote: (thumunId: number, note: string) => void;
-  setThumunRating: (thumunId: number, rating: ThumunRating | null) => void;
-  editThumun: (
-    id: number,
-    data: { startSura?: number; startAya?: number; endSura?: number; endAya?: number; text?: string },
-  ) => void;
-  logSession: (task: TaskType, day: number, seconds: number) => void;
-  completeOnboarding: (opts?: { startAtDay?: number; reminderTime?: string | null }) => void;
+  setReviewOnlyToday: (enabled: boolean) => boolean;
+  setNote: (id: number, note: string) => void;
+  setThumunRating: (id: number, rating: ThumunRating | null) => void;
+  editThumun: (id: number, data: ProgressData["editedThumuns"][number]) => void;
+  clearCorrectionDraft: (id: number) => void;
+  recordReviewAttempt: (id: number, rating: ThumunRating, sessionId: string) => boolean;
+  logSession: (task: TaskType, day: number, seconds: number, opts?: { id?: string; date?: string; thumunIds?: number[]; abandoned?: boolean }) => void;
+  finishSession: (payload: SessionPayload, seconds: number) => boolean;
+  completeOnboarding: (opts?: { startAtDay?: number; memorizedIds?: number[]; reminderTime?: string | null }) => void;
   updateSettings: (patch: Partial<Settings>) => void;
   startMaintainMode: () => void;
+  dismissCelebration: () => void;
   setLastCloudSync: (iso: string) => void;
   resetProgress: () => void;
-  hydrateFromCloud: (data: Partial<HifzState>) => void;
+  hydrateFromCloud: (data: ProgressData) => void;
+  switchOwner: (ownerId: string | null) => void;
+  restoreGuestBackup: (data: ProgressData) => void;
+}
+const volatileWorkspaces = new Map<string, { data: ProgressData; storageError: string | null }>();
+const validId = (id: number) => Number.isInteger(id) && id >= 1 && id <= 480;
+function canWrite(): boolean { return !useAppStatusStore.getState().storageError; }
+function error(message: string): never { throw new Error(message); }
+function activity(data: ProgressData, stamp: ReturnType<typeof nextStamp>, date = localDateKey()) {
+  return { ...data.versions, [`activity:${date}`]: data.versions[`activity:${date}`] ?? stamp };
+}
+function withPlan(data: ProgressData, date = localDateKey()): { data: ProgressData; plan: DailyPlan } {
+  const existing = data.dailyPlans[date];
+  if (existing) return { data, plan: existing };
+  const plan = makeDailyPlan(data, date, nextStamp(data));
+  return { data: { ...data, dailyPlans: { ...data.dailyPlans, [date]: plan } }, plan };
+}
+function setTask(data: ProgressData, day: number, task: TaskType, done: boolean, date = localDateKey(), performed?: number[]): ProgressData {
+  // Preview is unrestricted; credited actions are restricted at the store boundary too.
+  if (!validId(day) || day > data.currentDay || date !== localDateKey() || task === "free_review") return data;
+  const { data: base, plan } = withPlan(data, date);
+  if (plan.journeyDay !== day || !plan.taskKeys.includes(task)) return data;
+  const expected = materialIds(plan, task);
+  if (performed && expected.join(",") !== performed.join(",")) return data;
+  const id = completionId(date, task, plan.id), before = base.completions[id];
+  if (before?.done === done && before.day === day && before.materialIds.join(",") === expected.join(",")) return base;
+  const stamp = nextStamp(base);
+  const completions = { ...base.completions, [id]: {
+    id, planId: plan.id, task, day, date, done, materialIds: expected, legacy: false, stamp,
+  } };
+  const memorization = { ...base.memorization };
+  if (task === "new_hifz" && plan.newHifzId) {
+    const prior = memorization[plan.newHifzId];
+    if (!(prior?.memorized && prior.source === "prior")) memorization[plan.newHifzId] = {
+      memorized: done, source: prior?.source === "legacy" ? "legacy" : "learned",
+      at: new Date().toISOString(), stamp,
+    };
+  }
+  return deriveProgress({ ...base, completions, memorization, versions: done ? activity(base, stamp, date) : base.versions });
 }
 
-const initialState = {
-  currentDay: 1,
-  startDate: new Date().toISOString(),
-  completedTasks: {} as Record<number, DailyTasks>,
-  khatmaCompletedAt: null as string | null,
-  maintain: { active: false, day: 1 },
-  streak: 0,
-  bestStreak: 0,
-  lastActiveDate: "",
-  dailyLog: {} as Record<string, DailyLogEntry>,
-  sessionLog: {} as Record<string, SessionEntry[]>,
-  notes: {} as Record<number, string>,
-  thumunRatings: {} as Record<number, ThumunRating>,
-  editedThumuns: {},
-  showOnboarding: true,
-  totalXp: 0,
-  settings: {
-    reminderTime: null,
-    arabicNumerals: true,
-    hizbReciterId: "husary",
-    thumunReciterId: "sayed",
-    reciterId: "husary",
-    reciteJuzPerDay: 1,
-    listenHizbPerDay: 1,
-  } as Settings,
-  lastCloudSyncAt: null as string | null,
-};
-
-/** Streak credit: first activity of a LOCAL calendar day. */
-function withActivity(s: Pick<HifzState, "streak" | "lastActiveDate">) {
-  const today = localDateKey();
-  if (s.lastActiveDate === today) return { streak: s.streak, lastActiveDate: s.lastActiveDate };
-  const gap =
-    s.lastActiveDate && s.lastActiveDate !== today
-      ? daysBetweenLocal(s.lastActiveDate, today)
-      : Infinity;
-  // سياسة «يوم راحة»: فتور يوم واحد (gap=2) لا يكسر السلسلة (تبقى كما هي).
-  const streak = gap === 1 ? s.streak + 1 : gap === 2 ? Math.max(1, s.streak) : 1;
-  return { streak, lastActiveDate: today };
-}
-
-function creditDailyLog(
-  dailyLog: Record<string, DailyLogEntry>,
-  day: number,
-  tasks: number,
-): Record<string, DailyLogEntry> {
-  const today = localDateKey();
-  const prev = dailyLog[today];
-  const days = prev ? prev.days : [];
+export const useHifzStore = create<HifzState>()(persist((set, get) => {
+  const mutate = (fn: (state: ProgressData) => ProgressData) => {
+    if (!canWrite()) return false;
+    const before = get();
+    if (before.ownerId && !useAppStatusStore.getState().cloudReadReady) return false;
+    const next = fn(before);
+    if (next === before) return false;
+    set(deriveProgress(next));
+    if (get().ownerId) useAppStatusStore.getState().setStatus({ syncPhase: "pending" });
+    return true;
+  };
   return {
-    ...dailyLog,
-    [today]: {
-      date: today,
-      days: days.includes(day) ? days : [...days, day].sort((a, b) => a - b),
-      tasks: (prev?.tasks ?? 0) + tasks,
+    ...emptyProgress(), lastCloudSyncAt: null,
+    ensureTodayPlan: (date = localDateKey()) => {
+      if ((get().ownerId && !useAppStatusStore.getState().cloudReadReady) || get().showOnboarding || get().dailyPlans[date] || date !== localDateKey()) return;
+      mutate((data) => withPlan(data, date).data);
+    },
+    toggleTask: (day, task, date = localDateKey()) => mutate((data) => {
+      if (!validId(day) || day > data.currentDay || date !== localDateKey() || task === "free_review") return data;
+      const base = withPlan(data, date);
+      if (base.plan.journeyDay !== day || !base.plan.taskKeys.includes(task)) return data;
+      const before = base.data.completions[completionId(date, task, base.plan.id)]?.done === true;
+      return setTask(base.data, day, task, !before, date);
+    }),
+    completeTask: (day, task, date = localDateKey(), performedIds) => mutate((data) => setTask(data, day, task, true, date, performedIds)),
+    // Kept for compatibility. A memorization declaration is NOT six historical tasks.
+    toggleDayCompletion: (day) => { if (day <= get().currentDay) get().setMemorized(day, !get().memorization[day]?.memorized); },
+    markRangeComplete: (upToDay) => {
+      if (!Number.isInteger(upToDay) || upToDay < 0 || upToDay > 480) return;
+      mutate((data) => {
+        const stamp = nextStamp(data), memorization = { ...data.memorization };
+        for (let id = 1; id <= upToDay; id++) if (!memorization[id]?.memorized) memorization[id] = {
+          memorized: true, source: "prior", at: new Date().toISOString(), stamp,
+        };
+        const currentDay = Math.min(480, upToDay + 1);
+        return { ...data, memorization, currentDay, versions: { ...data.versions, currentDay: stamp } };
+      });
+    },
+    setMemorized: (id, memorized) => {
+      if (!validId(id)) return;
+      mutate((data) => {
+        if (data.memorization[id]?.memorized === memorized) return data;
+        const stamp = nextStamp(data), prev = data.memorization[id];
+        const memorization = { ...data.memorization, [id]: {
+          memorized, source: prev?.source ?? "prior", at: new Date().toISOString(), stamp,
+        } };
+        const completions = { ...data.completions };
+        if (!memorized) for (const [key, completion] of Object.entries(completions)) {
+          if (completion.task === "new_hifz" && (completion.materialIds.includes(id) || completion.day === id))
+            completions[key] = { ...completion, done: false, stamp };
+        }
+        // Declaration/restoration is not a learning activity or an XP grant.
+        return { ...data, memorization, completions };
+      });
+    },
+    declarePriorMemorization: (ids) => mutate((data) => {
+      if (ids.some((id) => !validId(id))) return data;
+      const selected = new Set(ids), stamp = nextStamp(data), memorization = { ...data.memorization }, completions = { ...data.completions };
+      for (let id = 1; id <= 480; id++) {
+        const before = memorization[id], done = selected.has(id);
+        if ((before?.memorized ?? false) === done) continue;
+        memorization[id] = { memorized: done, source: before?.source ?? "prior", at: new Date().toISOString(), stamp };
+        if (!done) for (const [key, c] of Object.entries(completions)) if (c.task === "new_hifz" && (c.day === id || c.materialIds.includes(id))) completions[key] = { ...c, done: false, stamp };
+      }
+      let currentDay = 1; while (currentDay < 480 && memorization[currentDay]?.memorized) currentDay++;
+      return { ...data, memorization, completions, currentDay, versions: { ...data.versions, currentDay: stamp } };
+    }),
+    advanceDay: () => mutate((data) => {
+      if (!data.memorization[data.currentDay]?.memorized || data.currentDay >= 480) return data;
+      let next = data.currentDay + 1;
+      while (next < 480 && data.memorization[next]?.memorized) next++;
+      return { ...data, currentDay: next, versions: { ...data.versions, currentDay: nextStamp(data) } };
+    }),
+    setReviewOnlyToday: (enabled) => mutate((data) => {
+      const { data: base, plan } = withPlan(data);
+      if (plan.mode !== "journey" || tasksForPlan(base, plan).new_hifz || plan.reviewOnly === enabled) return data;
+      const stamp = nextStamp(base);
+      const newHifzId = enabled || base.memorization[plan.journeyDay]?.memorized ? null : plan.journeyDay;
+      const taskKeys: TaskType[] = plan.taskKeys.filter((key) => key !== "new_hifz");
+      if (newHifzId !== null) taskKeys.push("new_hifz");
+      const completions = { ...base.completions };
+      const cid = completionId(plan.date, "new_hifz", plan.id);
+      if (completions[cid]) completions[cid] = { ...completions[cid], done: false, stamp };
+      return { ...base, completions, dailyPlans: { ...base.dailyPlans, [plan.date]: { ...plan, newHifzId, taskKeys, reviewOnly: enabled, stamp } } };
+    }),
+    setNote: (id, note) => {
+      if (!validId(id) || typeof note !== "string" || note.length > 10000) return;
+      mutate((data) => {
+        if ((data.notes[id] ?? "") === note) return data;
+        const notes = { ...data.notes };
+        if (note) notes[id] = note; else delete notes[id];
+        return { ...data, notes, versions: { ...data.versions, [`note:${id}`]: nextStamp(data) } };
+      });
+    },
+    setThumunRating: (id, rating) => {
+      if (!validId(id) || (rating !== null && !["weak", "good", "strong"].includes(rating))) return;
+      mutate((data) => {
+        if ((data.thumunRatings[id] ?? null) === rating) return data;
+        const thumunRatings = { ...data.thumunRatings };
+        if (rating) thumunRatings[id] = rating; else delete thumunRatings[id];
+        return { ...data, thumunRatings, versions: { ...data.versions, [`rating:${id}`]: nextStamp(data) } };
+      });
+    },
+    editThumun: (id, proposal) => {
+      if (!validId(id)) return;
+      const fields = correctionDraftSchema.parse(proposal);
+      mutate((data) => ({ ...data, editedThumuns: { ...data.editedThumuns, [id]: fields }, versions: { ...data.versions, [`draft:${id}`]: nextStamp(data) } }));
+    },
+    clearCorrectionDraft: (id) => mutate((data) => {
+      if (!validId(id) || !data.editedThumuns[id]) return data;
+      const editedThumuns = { ...data.editedThumuns }; delete editedThumuns[id];
+      return { ...data, editedThumuns, versions: { ...data.versions, [`draft:${id}`]: nextStamp(data) } };
+    }),
+    recordReviewAttempt: (thumunId, rating, sessionId) => mutate((data) => {
+      if (!validId(thumunId) || !["weak", "good", "strong"].includes(rating) || !/^[\w:.-]{1,180}$/.test(sessionId)) return data;
+      if (!data.memorization[thumunId]?.memorized) return data;
+      const id = `${sessionId}:${thumunId}`;
+      if (data.reviewAttempts[id]) return data;
+      const stamp = nextStamp(data), date = localDateKey(), at = new Date().toISOString();
+      return { ...data, reviewAttempts: { ...data.reviewAttempts, [id]: { id, thumunId, rating, at, date, sessionId, stamp } },
+        thumunRatings: { ...data.thumunRatings, [thumunId]: rating }, versions: { ...activity(data, stamp), [`rating:${thumunId}`]: stamp } };
+    }),
+    logSession: (task, day, seconds, opts = {}) => mutate((data) => {
+      if (!validId(day) || !Number.isFinite(seconds) || seconds < 1) return data;
+      const id = opts.id ?? newId();
+      if (!/^[\w:.-]{1,220}$/.test(id)) return data;
+      const existing = data.sessions[id];
+      if (existing && (!existing.abandoned || existing.seconds > seconds)) return data;
+      const date = opts.date ?? localDateKey();
+      const session = {
+        id, task, day, seconds: Math.min(43200, Math.floor(seconds)), date, at: new Date().toISOString(),
+        thumunIds: [...new Set((opts.thumunIds ?? []).filter(validId))], abandoned: opts.abandoned ?? false, stamp: nextStamp(data),
+      };
+      return { ...data, sessions: { ...data.sessions, [id]: session }, versions: seconds >= 30 ? activity(data, nextStamp(data), date) : data.versions };
+    }),
+    finishSession: (payload, seconds) => {
+      const data = get();
+      if (payload.ownerId !== data.ownerId) return false;
+      if (payload.preview || payload.kind === "free_review") {
+        get().logSession("free_review", payload.day, seconds, { id: payload.id, thumunIds: payload.thumuns.map((t) => t.id) });
+        return false;
+      }
+      const plan = data.dailyPlans[payload.planDate ?? localDateKey()];
+      if (!plan || plan.journeyDay !== payload.day || payload.planDate !== localDateKey()) return false;
+      const reading = ["khatma", "khatma_recite", "maintain_recite"].includes(payload.kind);
+      const listening = ["khatma", "khatma_listen"].includes(payload.kind);
+      if (reading && (payload.reciteJuzs ?? []).join(",") !== plan.reciteJuzs.join(",")) return false;
+      if (listening && (payload.listenHizbs ?? []).join(",") !== plan.listenHizbs.join(",")) return false;
+      if (payload.kind === "khatma") {
+        const changed = mutate((before) => setTask(setTask(before, payload.day, "khatma_recite", true, plan.date), payload.day, "khatma_listen", true, plan.date));
+        get().logSession("khatma_recite", payload.day, seconds, { id: payload.id }); return changed;
+      }
+      const task = payload.kind === "prep" ? "prep_weekly" : payload.kind;
+      const performed = payload.thumuns.map((t) => t.id);
+      const requiresMaterials = ["new_hifz", "prep_weekly", "review_near", "review_far"].includes(task);
+      if (["review_near", "review_far"].includes(task) && performed.some((id) => !data.reviewAttempts[`${payload.id}:${id}`])) return false;
+      const changed = get().completeTask(payload.day, task, payload.planDate ?? localDateKey(), requiresMaterials ? performed : undefined);
+      // Record time once even when the task was already completed on another screen.
+      get().logSession(task, payload.day, seconds, { id: payload.id, thumunIds: performed });
+      return changed;
+    },
+    completeOnboarding: (opts = {}) => mutate((data) => {
+      const stamp = nextStamp(data), memorization = { ...data.memorization };
+      const ids = opts.memorizedIds ?? Array.from({ length: Math.max(0, Math.min(480, Math.floor(opts.startAtDay ?? 0))) }, (_, i) => i + 1);
+      for (const id of ids.filter(validId)) if (!memorization[id]?.memorized) memorization[id] = { memorized: true, source: "prior", at: new Date().toISOString(), stamp };
+      let currentDay = 1;
+      while (currentDay < 480 && memorization[currentDay]?.memorized) currentDay++;
+      const reminderTime = opts.reminderTime ?? null;
+      const settings = settingsSchema.parse({ ...data.settings, reminderTime });
+      return { ...data, memorization, currentDay, settings, showOnboarding: false,
+        versions: { ...data.versions, currentDay: stamp, showOnboarding: stamp, "setting:reminderTime": stamp } };
+    }),
+    updateSettings: (patch) => {
+      const settings = settingsSchema.parse({ ...get().settings, ...patch });
+      mutate((data) => {
+        const changed = Object.keys(patch) as (keyof Settings)[];
+        if (changed.every((key) => data.settings[key] === settings[key])) return data;
+        const stamp = nextStamp(data), versions = { ...data.versions };
+        for (const key of changed) if (data.settings[key] !== settings[key]) versions[`setting:${key}`] = stamp;
+        return { ...data, settings, versions };
+      });
+    },
+    startMaintainMode: () => mutate((data) => {
+      if (memorizedIds(data).length !== 480 || data.maintain.active) return data;
+      const now = new Date(), today = localDateKey(now), plan = data.dailyPlans[today];
+      if (plan?.mode === "journey") now.setDate(now.getDate() + 1);
+      return { ...data, maintain: { active: true, day: 1, startedOn: localDateKey(now), cycleOffset: 0 }, versions: { ...data.versions, maintain: nextStamp(data) } };
+    }),
+    dismissCelebration: () => mutate((data) => ({ ...data, celebrationSeenAt: data.khatmaCompletedAt, versions: { ...data.versions, celebrationSeenAt: nextStamp(data) } })),
+    setLastCloudSync: (iso) => { set({ lastCloudSyncAt: iso }); useAppStatusStore.getState().setStatus({ syncedAt: iso }); },
+    resetProgress: () => {
+      if (get().ownerId) error("إعادة ضبط الحساب تتطلب تأكيد الخادم لكل الأجهزة");
+      const old = snapshotOf(get()); backupCurrent(old, "reset");
+      useAppStatusStore.getState().setStatus({ storageError: null });
+      set({ ...emptyProgress(), epoch: old.epoch + 1, lastCloudSyncAt: null });
+    },
+    hydrateFromCloud: (raw) => {
+      const data = parseProgress(raw), current = get();
+      if (data.ownerId !== current.ownerId) error("تغيّر الحساب؛ أُلغيت استعادة البيانات");
+      if (data.epoch < current.epoch) error("رفض بيانات تسبق إعادة الضبط");
+      if (data.epoch > current.epoch) backupCurrent(snapshotOf(current), "remote-reset");
+      set(deriveProgress(data));
+    },
+    switchOwner: (ownerId) => {
+      if (ownerId === get().ownerId) return;
+      const fresh = parseProgress(emptyProgress(ownerId));
+      const previous = snapshotOf(get());
+      volatileWorkspaces.set(storageKey(previous.ownerId), { data: previous, storageError: useAppStatusStore.getState().storageError });
+      if (canWrite()) { try { writeWorkspace(previous); volatileWorkspaces.delete(storageKey(previous.ownerId)); } catch { /* Keep unsaved data isolated in memory; never show it under another owner. */ } }
+      useAppStatusStore.getState().setStatus({ storageError: null, syncPhase: ownerId ? "pending" : "local", syncError: null, syncedAt: null, ownerId, cloudReadReady: ownerId ? hasCloudProof(ownerId) : true });
+      const cached = volatileWorkspaces.get(storageKey(ownerId));
+      const loaded = cached?.data ?? readWorkspace(ownerId);
+      const data = loaded ?? fresh;
+      useAppStatusStore.getState().setStatus({ cloudReadReady: ownerId ? !!loaded && hasCloudProof(ownerId) : true });
+      if (cached?.storageError) useAppStatusStore.getState().setStatus({ storageError: cached.storageError });
+      useHifzStore.persist.setOptions({ name: storageKey(ownerId) });
+      set({ ...deriveProgress(data), lastCloudSyncAt: null });
+      const guest = ownerId ? peekWorkspace(null) : null;
+      useAppStatusStore.getState().setStatus({ guestTransferAvailable: !!guest && (memorizedIds(guest).length > 0 || Object.values(guest.notes).some(Boolean) || Object.keys(guest.sessions).length > 0 || Object.keys(guest.editedThumuns).length > 0 || Object.keys(guest.thumunRatings).length > 0) });
+    },
+    restoreGuestBackup: (raw) => {
+      if (get().ownerId) error("استيراد الحساب يجب أن يمر عبر الاستبدال المحمي في الخادم");
+      const data = parseProgress(raw);
+      backupCurrent(snapshotOf(get()), "import");
+      useAppStatusStore.getState().setStatus({ storageError: null });
+      set({ ...deriveProgress({ ...data, ownerId: null, epoch: get().epoch + 1 }), lastCloudSyncAt: null });
     },
   };
-}
+}, {
+  name: storageKey(null), version: PROGRESS_VERSION,
+  storage: createJSONStorage(() => progressStorage), partialize: (state) => snapshotOf(state),
+  migrate: (raw, version) => migrateProgress(raw, version),
+  merge: (persisted, current) => {
+    if (!persisted) return current;
+    try { return { ...current, ...deriveProgress(parseProgress(persisted)) }; }
+    catch (err) { useAppStatusStore.getState().setStatus({ storageError: err instanceof Error ? err.message : "تعذّر الترحيل" }); return current; }
+  },
+}));
 
-function xpOf(task: TaskType | "day_bonus"): number {
-  return XP_TABLE[task] ?? 0;
-}
-
-export const useHifzStore = create<HifzState>()(
-  persist(
-    (set) => ({
-      ...initialState,
-
-      toggleTask: (day, task) =>
-        set((state) => {
-          const before = state.completedTasks[day] || {};
-          const was = !!before[task];
-          const next = { ...before, [task]: !was };
-          const activity = withActivity(state);
-          // XP عند الانتقالات فقط (false→true يضيف، العكس يخصم) — §4.2
-          const wasFull = isDayCompleted(before, state.maintain?.active);
-          const isFull = isDayCompleted(next, state.maintain?.active);
-          let delta = was ? -xpOf(task) : xpOf(task);
-          if (!wasFull && isFull) delta += xpOf("day_bonus");
-          if (wasFull && !isFull) delta -= xpOf("day_bonus");
-          // قاعدة الختمة الصارمة: يوم 480 + كل المهام — §10.6
-          const khatmaCompletedAt =
-            !state.khatmaCompletedAt && day === TOTAL_THUMUNS && isFull
-              ? new Date().toISOString()
-              : state.khatmaCompletedAt;
-          return {
-            completedTasks: { ...state.completedTasks, [day]: next },
-            totalXp: Math.max(0, (state.totalXp || 0) + delta),
-            khatmaCompletedAt,
-            dailyLog: was ? state.dailyLog : creditDailyLog(state.dailyLog, day, 1),
-            ...activity,
-          };
-        }),
-
-      toggleDayCompletion: (day) =>
-        set((state) => {
-          // مُوحَّد: الإكمال = كل المهام (§4.1) — لا حذف بالخطأ عند فك كل المهام.
-          const existing = state.completedTasks[day] || {};
-          const isCompleted = isDayCompleted(existing, state.maintain?.active);
-          const activity = withActivity(state);
-          const keys: TaskType[] = state.maintain?.active ? ["maintain_recite"] : JOURNEY_TASKS;
-          if (isCompleted) {
-            // تفكيك اليوم: خصم مجموع XP المهام المتُمة + بونص اليوم
-            let delta = xpOf("day_bonus");
-            for (const k of keys) if (existing[k]) delta += xpOf(k);
-            const tasks = { ...state.completedTasks };
-            delete tasks[day];
-            return {
-              completedTasks: tasks,
-              totalXp: Math.max(0, (state.totalXp || 0) - delta),
-              dailyLog: state.dailyLog,
-              ...activity,
-            };
-          }
-          // إكمال اليوم: اعتماد كل المهام المتبقية فقط (المتُمة لا تُمنح مرتين)
-          const full: DailyTasks = { ...existing };
-          let delta = 0;
-          for (const k of keys) {
-            if (!full[k]) {
-              full[k] = true;
-              delta += xpOf(k);
-            }
-          }
-          delta += xpOf("day_bonus");
-          const khatmaCompletedAt =
-            !state.khatmaCompletedAt && day === TOTAL_THUMUNS
-              ? new Date().toISOString()
-              : state.khatmaCompletedAt;
-          return {
-            completedTasks: { ...state.completedTasks, [day]: full },
-            totalXp: (state.totalXp || 0) + delta,
-            khatmaCompletedAt,
-            dailyLog: creditDailyLog(state.dailyLog, day, 1),
-            ...activity,
-          };
-        }),
-
-      markRangeComplete: (upToDay) =>
-        set((state) => {
-          const target = Math.max(0, Math.min(upToDay, TOTAL_THUMUNS));
-          const completedTasks = { ...state.completedTasks };
-          for (let d = 1; d <= target; d++) {
-            if (!completedTasks[d] || !Object.values(completedTasks[d]).some(Boolean)) {
-              completedTasks[d] = {
-                khatma_recite: true,
-                khatma_listen: true,
-                prep_weekly: true,
-                new_hifz: true,
-                review_near: true,
-                review_far: true,
-              };
-            }
-          }
-          const activity = withActivity(state);
-          return {
-            completedTasks,
-            currentDay: Math.min(target + 1, TOTAL_THUMUNS),
-            totalXp: (state.totalXp || 0) + target * xpOf("day_bonus"),
-            ...activity,
-          };
-        }),
-
-      advanceDay: () =>
-        set((state) => {
-          const activity = withActivity(state);
-          const nextDay = state.currentDay + 1;
-          if (nextDay > TOTAL_THUMUNS) {
-            return {
-              ...activity,
-              currentDay: TOTAL_THUMUNS,
-            };
-          }
-          return {
-            ...activity,
-            currentDay: nextDay,
-            dailyLog: creditDailyLog(state.dailyLog, state.currentDay, 0),
-          };
-        }),
-
-      setNote: (thumunId, note) =>
-        set((state) => ({ notes: { ...state.notes, [thumunId]: note } })),
-
-      setThumunRating: (thumunId, rating) =>
-        set((state) => {
-          const next = { ...state.thumunRatings };
-          if (rating === null) delete next[thumunId];
-          else next[thumunId] = rating;
-          return { thumunRatings: next };
-        }),
-
-      editThumun: (id, data) =>
-        set((state) => ({
-          editedThumuns: {
-            ...state.editedThumuns,
-            [id]: { ...(state.editedThumuns[id] || {}), ...data },
-          },
-        })),
-
-      logSession: (task, day, seconds) =>
-        set((state) => {
-          const today = localDateKey();
-          const activity = withActivity(state);
-          return {
-            sessionLog: {
-              ...state.sessionLog,
-              [today]: [
-                ...(state.sessionLog[today] || []),
-                { task, day, seconds, at: new Date().toISOString() },
-              ],
-            },
-            ...activity,
-          };
-        }),
-
-      completeOnboarding: (opts) =>
-        set((state) => {
-          const base = {
-            showOnboarding: false,
-            startDate: new Date().toISOString(),
-            ...withActivity(state),
-          };
-          const start = Math.min(Math.max(opts?.startAtDay ?? 0, 0), TOTAL_THUMUNS - 1);
-          const reminder = opts?.reminderTime ?? state.settings.reminderTime;
-          const withStart =
-            start > 0
-              ? (() => {
-                  const completedTasks = { ...state.completedTasks };
-                  for (let d = 1; d <= start; d++) {
-                    completedTasks[d] = {
-                      khatma_recite: true,
-                      khatma_listen: true,
-                      prep_weekly: true,
-                      new_hifz: true,
-                      review_near: true,
-                      review_far: true,
-                    };
-                  }
-                  return { completedTasks, currentDay: Math.min(start + 1, TOTAL_THUMUNS) };
-                })()
-              : {};
-          return {
-            ...base,
-            ...withStart,
-            settings: { ...state.settings, reminderTime: reminder ?? null },
-          };
-        }),
-
-      updateSettings: (patch) =>
-        set((state) => ({ settings: { ...state.settings, ...patch } })),
-
-      startMaintainMode: () =>
-        set(() => ({ maintain: { active: true, day: 1 } })),
-
-      setLastCloudSync: (iso) => set(() => ({ lastCloudSyncAt: iso })),
-
-      resetProgress: () =>
-        set(() => ({ ...initialState, startDate: new Date().toISOString() })),
-
-      hydrateFromCloud: (data) =>
-        set((state) => {
-          const rawMaintain = data.maintain ?? state.maintain;
-          const maintain =
-            rawMaintain && typeof rawMaintain === "object"
-              ? {
-                  active: Boolean((rawMaintain as { active?: boolean }).active),
-                  day:
-                    typeof (rawMaintain as { day?: number }).day === "number" &&
-                    (rawMaintain as { day?: number }).day! > 0
-                      ? (rawMaintain as { day?: number }).day!
-                      : 1,
-                }
-              : { active: false, day: 1 };
-          return {
-            ...state,
-            ...data,
-            maintain,
-            settings: { ...state.settings, ...(data.settings ?? {}) },
-            showOnboarding: false,
-          };
-        }),
-    }),
-    {
-      name: "hifz-storage",
-      version: 3,
-      migrate: (persisted: unknown, version) => {
-        const p = (persisted || {}) as Record<string, unknown>;
-        // v1 → v2: local-date dailyLog reshape, drop dead farReviewPointer,
-        // merge per-task XP into totalXp-free state, coerce numeric keys.
-        if ((version ?? 0) < 2) {
-          const oldLog = (p.dailyLog || {}) as Record<
-            string,
-            { day?: number; completedAll?: boolean; tasksCompleted?: number; date?: string }
-          >;
-          const dailyLog: Record<string, DailyLogEntry> = {};
-          for (const [k, v] of Object.entries(oldLog)) {
-            dailyLog[k] = {
-              date: v.date ?? k,
-              days: v.day != null && v.completedAll ? [v.day] : [],
-              tasks: v.tasksCompleted ?? 0,
-            };
-          }
-          p.dailyLog = dailyLog;
-          delete p.farReviewPointer;
-          // legacy edit shapes targeted the old flat schema — drop them
-          p.editedThumuns = {};
-          if (p.settings === undefined) p.settings = initialState.settings;
-          if (p.sessionLog === undefined) p.sessionLog = {};
-          if (p.thumunRatings === undefined) p.thumunRatings = {};
-          if (p.khatmaCompletedAt === undefined) p.khatmaCompletedAt = null;
-          if (p.maintain === undefined) p.maintain = { active: false, day: 1 };
-          if (p.lastCloudSyncAt === undefined) p.lastCloudSyncAt = null;
-        }
-        // v2 → v3: وتيرة الختمة (إعدادات جديدة بقيم افتراضية)
-        if ((version ?? 0) < 3) {
-          const s = (p.settings || {}) as Record<string, unknown>;
-          p.settings = {
-            ...initialState.settings,
-            ...s,
-            reciteJuzPerDay: typeof s.reciteJuzPerDay === "number" ? s.reciteJuzPerDay : 1,
-            listenHizbPerDay: typeof s.listenHizbPerDay === "number" ? s.listenHizbPerDay : 1,
-          };
-        }
-        // Ensure maintain is always a valid object with active and day
-        if (!p.maintain || typeof p.maintain !== "object") {
-          p.maintain = { active: false, day: 1 };
-        } else {
-          const m = p.maintain as Record<string, unknown>;
-          p.maintain = {
-            active: Boolean(m.active),
-            day: typeof m.day === "number" && m.day > 0 ? m.day : 1,
-          };
-        }
-        return p;
-      },
-    },
-  ),
-);
+export function forgetVolatileOwner(owner: string) { volatileWorkspaces.delete(storageKey(owner)); }

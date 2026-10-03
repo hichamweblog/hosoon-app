@@ -1,636 +1,149 @@
 "use client";
-
-import { useHifzStore } from "@/store/useHifzStore";
-import {
-  deleteCloudData,
-  fetchProgressFromCloud,
-  getCurrentUser,
-  isSupabaseConfigured,
-  mergeProgress,
-  signOutUser,
-  syncProgressToCloud,
-} from "@/lib/supabase";
-import { ensureNotificationPermission, scheduleDailyReminder, showReminderNotification } from "@/lib/reminders";
-import { HIZB_RECITERS, THUMUN_RECITERS } from "@/lib/quran-audio";
-import { validateBackup, BACKUP_VERSION, type BackupFile } from "@/lib/backup";
-import { localDateKey } from "@/lib/format";
-import { vibrateLight, vibrateSuccess } from "@/lib/haptic";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
-import { Button } from "./ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "./ui/alert-dialog";
-import {
-  Bell,
-  Check,
-  CheckCircle2,
-  Cloud,
-  Download,
-  Languages,
-  LogIn,
-  LogOut,
-  Palette,
-  RefreshCw,
-  RotateCcw,
-  Trash2,
-  Upload,
-  X,
-} from "lucide-react";
-import AuthModal from "./AuthModal";
 import { useTheme } from "next-themes";
-import { APP_THEMES } from "@/lib/themes";
+import { Bell, Cloud, Download, FileUp, LogOut, Shield, Trash2 } from "lucide-react";
+import { useHifzStore, forgetVolatileOwner } from "@/store/useHifzStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useAppStatusStore } from "@/store/useAppStatusStore";
+import { createBackup, validateBackup, MAX_BACKUP_BYTES, type BackupFile, type BackupSummary } from "@/lib/backup";
+import { recoveryCopies, originalWorkspaceRaw, forgetWorkspace } from "@/lib/progress/storage";
+import { memorizedIds } from "@/lib/progress/plan";
+import { downloadJson, downloadText } from "@/lib/download";
+import { formatNum, localDateKey } from "@/lib/format";
+import { ensureNotificationPermission, showReminderNotification } from "@/lib/reminders";
+import { synchronizeNow, replaceAllProgress, stopCloudSync, transferGuestProgress } from "@/lib/sync/service";
+import { signOutUser, deleteAccount, clearDeletedLocalSession, fetchCloudRecoveries, isSupabaseConfigured } from "@/lib/supabase";
+import { diagnosticReport } from "@/lib/diagnostics";
+import AuthModal from "./AuthModal";
+import PriorSelection from "./PriorSelection";
+import OfflineDownloads from "./OfflineDownloads";
+import { AppModal, ConfirmModal } from "./ui/app-modal";
+import { Button } from "./ui/button";
+import { Switch } from "./ui/switch";
+import { toast } from "sonner";
+import { stopAudio } from "@/lib/audio-engine";
 
-interface Props {
-  onClose: () => void;
-}
-
-export default function SettingsModal({ onClose }: Props) {
-  const state = useHifzStore();
-  const { settings, updateSettings, resetProgress, setLastCloudSync } = state;
-  const { theme, setTheme } = useTheme();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [showResetAlert, setShowResetAlert] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [showDeleteAlert, setShowDeleteAlert] = useState(false);
-  const [user, setUser] = useState<{ email?: string } | null>(null);
-  const [syncing, setSyncing] = useState(false);
-
-  useEffect(() => {
-    getCurrentUser().then((u) => setUser(u ? { email: u.email } : null));
-  }, []);
-
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", h);
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", h);
-      document.body.style.overflow = "";
-    };
-  }, [onClose]);
-
-  const snapshotCloud = () => ({
-    current_day: state.currentDay,
-    streak: state.streak,
-    best_streak: state.bestStreak,
-    total_xp: state.totalXp,
-    completed_tasks: state.completedTasks,
-    daily_log: state.dailyLog,
-    session_log: state.sessionLog,
-    notes: state.notes,
-    thumun_ratings: state.thumunRatings,
-    edited_thumuns: state.editedThumuns,
-    khatma_completed_at: state.khatmaCompletedAt,
-    maintain: state.maintain,
-    settings: settings as unknown as Record<string, unknown>,
-  });
-
-  const handleManualSync = async () => {
-    setSyncing(true);
-    vibrateLight();
-    // pull → merge → push (never clobber newer remote data)
-    const { data } = await fetchProgressFromCloud();
-    if (data) {
-      const merged = mergeProgress(
-        {
-          currentDay: state.currentDay,
-          streak: state.streak,
-          bestStreak: state.bestStreak,
-          totalXp: state.totalXp,
-          completedTasks: state.completedTasks,
-          dailyLog: state.dailyLog as never,
-          notes: state.notes,
-          thumunRatings: state.thumunRatings as never,
-          editedThumuns: state.editedThumuns as never,
-        },
-        {
-          currentDay: data.current_day,
-          streak: data.streak,
-          bestStreak: data.best_streak,
-          totalXp: data.total_xp,
-          completedTasks: data.completed_tasks as never,
-          dailyLog: data.daily_log as never,
-          notes: data.notes as never,
-          thumunRatings: data.thumun_ratings as never,
-          editedThumuns: data.edited_thumuns as never,
-        },
-      );
-      useHifzStore.getState().hydrateFromCloud(merged as never);
-    }
-    const { error } = await syncProgressToCloud(snapshotCloud());
-    setSyncing(false);
-    if (error && typeof error === "object" && "message" in error) {
-      toast.error("فشل في المزامنة: " + error.message);
-    } else {
-      vibrateSuccess();
-      setLastCloudSync(new Date().toISOString());
-      toast.success("تمت المزامنة السحابية");
-    }
+export default function SettingsModal({ onClose }: { onClose: () => void }) {
+  const state = useHifzStore(), user = useAuthStore((s) => s.user), status = useAppStatusStore(), { theme, setTheme } = useTheme();
+  const arabic = state.settings.arabicNumerals, editable = !status.storageError && (!state.ownerId || status.cloudReadReady);
+  const [auth, setAuth] = useState(false), [busy, setBusy] = useState(false), [confirm, setConfirm] = useState<"reset" | "local" | "delete" | "transfer" | null>(null);
+  const [pending, setPending] = useState<{ file: BackupFile; summary: BackupSummary } | null>(null), [deleteText, setDeleteText] = useState("");
+  const [prior, setPrior] = useState<Set<number> | null>(null), [reminder, setReminder] = useState(state.settings.reminderTime ?? "18:00");
+  const fileInput = useRef<HTMLInputElement>(null), live = useRef(true);
+  useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
+  const run = async (task: () => Promise<void>, success?: string) => {
+    setBusy(true);
+    try { await task(); if (success) toast.success(success); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "تعذر تنفيذ العملية؛ بقيت بياناتك دون استبدال"); }
+    finally { if (live.current) setBusy(false); }
   };
-
-  const handleSignOut = async () => {
-    vibrateLight();
-    await signOutUser();
-    setUser(null);
-    toast.info("تم تسجيل الخروج — بقي تقدمك محفوظاً على جهازك");
-  };
-
-  const handleExport = () => {
-    vibrateLight();
-    try {
-      const file: BackupFile = {
-        app: "hosoon",
-        version: BACKUP_VERSION,
-        exportedAt: new Date().toISOString(),
-        state: {
-          currentDay: state.currentDay,
-          startDate: state.startDate,
-          completedTasks: state.completedTasks,
-          khatmaCompletedAt: state.khatmaCompletedAt,
-          maintain: state.maintain,
-          streak: state.streak,
-          bestStreak: state.bestStreak,
-          lastActiveDate: state.lastActiveDate,
-          dailyLog: state.dailyLog,
-          sessionLog: state.sessionLog,
-          notes: state.notes,
-          thumunRatings: state.thumunRatings,
-          editedThumuns: state.editedThumuns,
-          totalXp: state.totalXp,
-          settings: state.settings,
-          lastCloudSyncAt: state.lastCloudSyncAt,
-          showOnboarding: state.showOnboarding,
-        },
-      };
-      const blob = new Blob([JSON.stringify(file, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `hosoon_backup_${localDateKey()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success("تم تصدير نسخة احتياطية");
-      vibrateSuccess();
-    } catch {
-      toast.error("حدث خطأ أثناء التصدير");
-    }
-  };
-
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const pickBackup = async (file?: File) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const parsed = JSON.parse(String(event.target?.result));
-        const res = validateBackup(parsed);
-        if (!res.ok) {
-          toast.error(res.error);
-          return;
-        }
-        const s = res.summary;
-        const ok = confirm(
-          `استيراد نسخة:\nاليوم ${s.currentDay} · ${s.daysCompleted} يوماً منجزاً · ${s.totalXp} نقطة · سلسلة ${s.streak}\nسيُستبدل التقدم المحلي. أكمل؟`,
-        );
-        if (!ok) return;
-        // write as a persist envelope then reload
-        const envelope = JSON.stringify({ state: res.file.state, version: res.file.version });
-        localStorage.setItem("hifz-storage", envelope);
-        vibrateSuccess();
-        toast.success("تم الاستيراد — سيتم تحديث الصفحة");
-        setTimeout(() => window.location.reload(), 1200);
-      } catch {
-        toast.error("ملف البيانات غير صالح");
-      }
-    };
-    reader.readAsText(file);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (file.size > MAX_BACKUP_BYTES) { toast.error("الملف أكبر من 8 MiB"); return; }
+    try {
+      const result = validateBackup(JSON.parse(await file.text()));
+      if (!result.ok) toast.error(result.error);
+      else setPending({ file: result.file, summary: result.summary });
+    } catch { toast.error("ملف JSON غير صالح؛ لم يتغير شيء"); }
   };
-
-  const handleDeleteCloud = async () => {
-    const { error } = await deleteCloudData();
-    setShowDeleteAlert(false);
-    if (error && typeof error === "object" && "message" in error) {
-      toast.error("تعذّر الحذف: " + error.message);
-    } else {
-      toast.success("حُذفت بياناتك السحابية");
+  const exportData = () => {
+    try { downloadJson(createBackup(state), `hosoon-${state.ownerId ? "account" : "guest"}-${localDateKey()}.json`); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "تعذر التصدير"); }
+  };
+  const enableReminder = async () => {
+    const owner = state.ownerId;
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(reminder)) { toast.error("اختر وقتًا صالحًا"); return; }
+    const granted = await ensureNotificationPermission();
+    if (!live.current || useHifzStore.getState().ownerId !== owner) return;
+    if (!granted) { toast.info("الإشعارات غير متاحة أو مرفوضة. لم نفعّل التذكير؛ يمكنك تعديل إذن الموقع في المتصفح."); return; }
+    state.updateSettings({ reminderTime: reminder }); toast.success("فُعّل تذكير محلي أثناء فتح التطبيق، دون ضمان وصوله في الخلفية");
+  };
+  const logout = async () => {
+    const owner = state.ownerId;
+    if (!owner || useHifzStore.getState().ownerId !== owner) throw new Error("تغيّر الحساب؛ أُلغيت عملية الخروج القديمة");
+    const result = await signOutUser(owner);
+    if (result.error) throw new Error("تعذر إنهاء الجلسة؛ حاول مرة أخرى");
+    if (useHifzStore.getState().ownerId !== owner && useHifzStore.getState().ownerId !== null) return;
+    stopCloudSync(); stopAudio(); useHifzStore.getState().switchOwner(null);
+    useAuthStore.getState().setAuth({ user: null });
+  };
+  const executeConfirmation = () => run(async () => {
+    const action = confirm;
+    if (action === "reset") await replaceAllProgress();
+    if (action === "transfer") await transferGuestProgress();
+    if (action === "local") {
+      const owner = state.ownerId;
+      if (!owner) useHifzStore.getState().resetProgress();
+      else { await logout(); forgetWorkspace(owner); forgetVolatileOwner(owner); }
     }
-    await handleSignOut();
-  };
-
-  return (
-    <>
-      <div
-        className="fixed inset-0 z-[110] bg-background/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-hidden"
-        dir="rtl"
-        role="dialog"
-        aria-modal="true"
-        aria-label="الإعدادات"
-      >
-        <div className="bg-surface rounded-3xl w-full max-w-md border border-border shadow-2xl relative animate-in slide-in-from-bottom-10 sm:zoom-in-95 max-h-[90dvh] flex flex-col min-h-0 overflow-hidden my-auto">
-          {/* Fixed Header */}
-          <div className="flex justify-between items-center px-6 py-4 border-b border-border/40 shrink-0 bg-surface/95 backdrop-blur-sm">
-            <h2 className="font-bold text-xl">الإعدادات</h2>
-            <Button variant="ghost" size="icon" onClick={() => { vibrateLight(); onClose(); }} className="rounded-full" aria-label="إغلاق">
-              <X className="w-5 h-5 text-muted-foreground" />
-            </Button>
-          </div>
-
-          {/* Scrollable Body */}
-          <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0 custom-scrollbar overscroll-contain">
-            {/* ─── سمة المظهر والألوان ─── */}
-            <div className="bg-background rounded-2xl p-4 border border-border">
-              <div className="flex items-center justify-between mb-3">
-                <p className="font-bold text-sm flex items-center gap-2">
-                  <Palette className="w-4 h-4 text-primary" aria-hidden /> سمة المظهر والألوان
-                </p>
-                <span className="text-xs font-medium text-muted-foreground">
-                  {APP_THEMES.find((t) => t.id === theme)?.name ?? "مخصّص"}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {APP_THEMES.map((th) => {
-                  const isSelected = theme === th.id;
-                  return (
-                    <button
-                      key={th.id}
-                      type="button"
-                      onClick={() => {
-                        vibrateLight();
-                        setTheme(th.id);
-                      }}
-                      className={`flex flex-col gap-2 p-2.5 rounded-xl border text-right transition-all relative ${
-                        isSelected
-                          ? "border-primary bg-primary/10 shadow-xs ring-1 ring-primary"
-                          : "border-border/60 hover:border-primary/40 bg-surface/50"
-                      }`}
-                      aria-pressed={isSelected}
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <span className="text-xs font-bold leading-tight">{th.name}</span>
-                        {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
-                      </div>
-                      <div className="flex items-center gap-1.5 pt-0.5">
-                        <span
-                          className="w-3.5 h-3.5 rounded-full border border-black/10 shrink-0 shadow-xs"
-                          style={{ backgroundColor: th.colors[0] }}
-                          title="الخلفية"
-                        />
-                        <span
-                          className="w-3.5 h-3.5 rounded-full border border-black/10 shrink-0 shadow-xs"
-                          style={{ backgroundColor: th.colors[1] }}
-                          title="الأساسي"
-                        />
-                        <span
-                          className="w-3.5 h-3.5 rounded-full border border-black/10 shrink-0 shadow-xs"
-                          style={{ backgroundColor: th.colors[2] }}
-                          title="التمييز"
-                        />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            {/* ─── التذكير اليومي ─── */}
-            <div className="bg-background rounded-2xl p-4 border border-border">
-              <div className="flex items-center justify-between mb-2">
-                <p className="font-bold text-sm flex items-center gap-2">
-                  <Bell className="w-4 h-4 text-f-near" aria-hidden /> التذكير اليومي
-                </p>
-                <input
-                  type="time"
-                  value={settings.reminderTime ?? ""}
-                  onChange={async (e) => {
-                    const v = e.target.value || null;
-                    updateSettings({ reminderTime: v });
-                    if (v) {
-                      const ok = await ensureNotificationPermission();
-                      if (ok) {
-                        scheduleDailyReminder(v);
-                        toast.success(`سيصلك تذكير يومي عند ${v}`);
-                      } else {
-                        toast.error("لم يُسمح بالإشعارات على هذا الجهاز");
-                      }
-                    } else {
-                      scheduleDailyReminder(null);
-                    }
-                  }}
-                  className="bg-surface border border-border rounded-lg px-2 py-1 text-sm"
-                  aria-label="وقت التذكير"
-                />
-              </div>
-              <button
-                onClick={() => showReminderNotification("هكذا سيصلك تذكيرك اليومي من حصون.")}
-                className="text-xs text-primary hover:underline"
-              >
-                جرّب إشعاراً الآن
-              </button>
-            </div>
-
-            {/* ─── تفضيلات العرض والصوت ─── */}
-            <div className="bg-background rounded-2xl p-4 border border-border space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="font-bold text-sm flex items-center gap-2">
-                  <Languages className="w-4 h-4 text-f-prep" aria-hidden /> الأرقام العربية
-                </p>
-                <button
-                  role="switch"
-                  aria-checked={settings.arabicNumerals}
-                  onClick={() => updateSettings({ arabicNumerals: !settings.arabicNumerals })}
-                  className={`w-11 h-6 rounded-full transition-colors relative ${settings.arabicNumerals ? "bg-primary" : "bg-muted"}`}
-                >
-                  <span
-                    className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${settings.arabicNumerals ? "right-0.5" : "right-[22px]"}`}
-                  />
-                </button>
-              </div>
-              {/* قارئ سماع الأحزاب */}
-              <div className="flex items-center justify-between">
-                <label htmlFor="hizb-reciter-select" className="font-bold text-sm">
-                  قارئ الأحزاب (الختمة)
-                </label>
-                <select
-                  id="hizb-reciter-select"
-                  value={settings.hizbReciterId || "husary"}
-                  onChange={(e) => updateSettings({ hizbReciterId: e.target.value })}
-                  className="bg-surface border border-border rounded-lg px-2 py-1.5 text-xs max-w-[55%]"
-                >
-                  {HIZB_RECITERS.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* قارئ سماع الأثمان */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="thumun-reciter-select" className="font-bold text-sm">
-                    قارئ الأثمان (الحفظ)
-                  </label>
-                  <select
-                    id="thumun-reciter-select"
-                    value={settings.thumunReciterId || "sayed"}
-                    onChange={(e) => updateSettings({ thumunReciterId: e.target.value })}
-                    className="bg-surface border border-border rounded-lg px-2 py-1.5 text-xs max-w-[55%]"
-                  >
-                    <optgroup label="⏱️ تلاوة">
-                      {THUMUN_RECITERS.filter((r) => r.pace === "normal").map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.name} (تلاوة)
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="⚡ مسرع">
-                      {THUMUN_RECITERS.filter((r) => r.pace === "fast").map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.name} (مسرع)
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                </div>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  التسجيلات المسرعة (الحَدْر) تُعين على التكرار السريع وتثبيت المحفوظ، بينما التلاوة المعتادة تناسب التحضير والضبط المتأني.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="pace-recite" className="font-bold text-sm">
-                    التلاوة: أجزاء في اليوم
-                  </label>
-                  <select
-                    id="pace-recite"
-                    value={state.settings.reciteJuzPerDay}
-                    onChange={(e) => {
-                      state.updateSettings({ reciteJuzPerDay: Number(e.target.value) });
-                      vibrateLight();
-                    }}
-                    className="w-full mt-1 bg-background border border-border rounded-xl px-3 py-2.5 text-sm"
-                  >
-                    {[1, 2, 3].map((n) => (
-                      <option key={n} value={n}>
-                        {n} جزء
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="pace-listen" className="font-bold text-sm">
-                    الاستماع: أحزاب في اليوم
-                  </label>
-                  <select
-                    id="pace-listen"
-                    value={state.settings.listenHizbPerDay}
-                    onChange={(e) => {
-                      state.updateSettings({ listenHizbPerDay: Number(e.target.value) });
-                      vibrateLight();
-                    }}
-                    className="w-full mt-1 bg-background border border-border rounded-xl px-3 py-2.5 text-sm"
-                  >
-                    {[1, 2, 3].map((n) => (
-                      <option key={n} value={n}>
-                        {n} حزب
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <p className="text-[10px] text-muted-foreground">
-                جميع التلاوات برواية ورش عن نافع من طريق المدرسة المغربية
-              </p>
-            </div>
-
-            {/* ─── المزامنة السحابية ─── */}
-            <div className="bg-background rounded-2xl p-4 border border-border space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-bold text-sm">المزامنة السحابية</p>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
-                        user
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-1"
-                          : isSupabaseConfigured
-                            ? "bg-f-khatma/10 text-f-khatma"
-                            : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {user ? (
-                        <>
-                          <CheckCircle2 className="w-3 h-3" aria-hidden /> متزامن
-                        </>
-                      ) : isSupabaseConfigured ? (
-                        "سحابي"
-                      ) : (
-                        "محلي"
-                      )}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {user
-                      ? `${user.email} · آخر مزامنة ${state.lastCloudSyncAt ? new Date(state.lastCloudSyncAt).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" }) : "—"}`
-                      : isSupabaseConfigured
-                        ? "سجّل دخولك لحفظ التقدم سحابياً وتجنّب فقده"
-                        : "بياناتك محفوظة على هذا الجهاز فقط"}
-                  </p>
-                </div>
-                <div className="w-9 h-9 flex items-center justify-center bg-surface rounded-xl shrink-0">
-                  <Cloud className="w-4 h-4 text-primary" aria-hidden />
-                </div>
-              </div>
-
-              {user ? (
-                <div className="flex items-center gap-2 pt-1 border-t border-border/40">
-                  <button
-                    onClick={handleManualSync}
-                    disabled={syncing}
-                    className="flex-1 py-2 px-3 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} aria-hidden />
-                    مزامنة الآن
-                  </button>
-                  <button
-                    onClick={handleSignOut}
-                    className="py-2 px-3 rounded-xl bg-muted hover:bg-muted/80 text-muted-foreground text-xs font-semibold flex items-center gap-1 transition-colors"
-                  >
-                    <LogOut className="w-3.5 h-3.5" aria-hidden /> خروج
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => {
-                    vibrateLight();
-                    setShowAuthModal(true);
-                  }}
-                  className="w-full py-2.5 px-3 rounded-xl bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-primary/90 transition-colors shadow-sm"
-                >
-                  <LogIn className="w-3.5 h-3.5" aria-hidden /> تسجيل الدخول / إنشاء حساب
-                </button>
-              )}
-            </div>
-
-            {/* ─── نسخ احتياطية ─── */}
-            <button
-              onClick={handleExport}
-              className="w-full text-right bg-background rounded-2xl p-4 border border-border flex items-center justify-between transition-colors hover:bg-muted/50 active:bg-muted"
-            >
-              <div>
-                <p className="font-bold text-sm">تصدير البيانات</p>
-                <p className="text-xs text-muted-foreground mt-0.5">ملف JSON يحتوي كل تقدمك</p>
-              </div>
-              <Download className="w-4 h-4 text-primary" aria-hidden />
-            </button>
-            <button
-              onClick={() => {
-                vibrateLight();
-                fileInputRef.current?.click();
-              }}
-              className="w-full text-right bg-background rounded-2xl p-4 border border-border flex items-center justify-between transition-colors hover:bg-muted/50 active:bg-muted"
-            >
-              <div>
-                <p className="font-bold text-sm">استيراد البيانات</p>
-                <p className="text-xs text-muted-foreground mt-0.5">مع معاينة قبل التطبيق</p>
-              </div>
-              <Upload className="w-4 h-4 text-primary" aria-hidden />
-            </button>
-            <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleImport} />
-
-            {/* ─── مناطق الخطر ─── */}
-            {user && (
-              <button
-                onClick={() => setShowDeleteAlert(true)}
-                className="w-full text-right bg-red-500/5 rounded-2xl p-4 border border-red-500/10 flex items-center justify-between transition-colors hover:bg-red-500/10"
-              >
-                <div>
-                  <p className="font-bold text-sm text-red-500">حذف البيانات السحابية</p>
-                  <p className="text-xs text-red-500/70 mt-0.5">يمسح صف تقدمك من الخادم</p>
-                </div>
-                <Trash2 className="w-4 h-4 text-red-500" aria-hidden />
-              </button>
-            )}
-            <button
-              onClick={() => {
-                vibrateLight();
-                setShowResetAlert(true);
-              }}
-              className="w-full text-right bg-red-500/5 rounded-2xl p-4 border border-red-500/10 flex items-center justify-between transition-colors hover:bg-red-500/10 active:bg-red-500/20"
-            >
-              <div>
-                <p className="font-bold text-sm text-red-500">إعادة ضبط المصنع</p>
-                <p className="text-xs text-red-500/70 mt-0.5">مسح كل شيء — الخبرة والسلسلة والتصحيحات</p>
-              </div>
-              <RotateCcw className="w-4 h-4 text-red-500" aria-hidden />
-            </button>
-
-            <p className="text-[10px] text-muted-foreground text-center pt-2 leading-relaxed">
-              البيانات تُحفظ محلياً على جهازك وتُزامَن سحابياً بحسابك فقط (مشفّرة بتمرير عبر
-              TLS، وصفّك محمي بسياسات RLS).
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <AlertDialog open={showResetAlert} onOpenChange={setShowResetAlert}>
-        <AlertDialogContent dir="rtl" className="rounded-[24px]">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-right">تصفير الرحلة؟</AlertDialogTitle>
-            <AlertDialogDescription className="text-right">
-              سيُمسح كل شيء: التقدم، الخبرة، السلسلة، الملاحظات، وتصحيحات الأثمان. لا يمكن
-              التراجع!
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-row items-center gap-2 sm:justify-start">
-            <AlertDialogCancel className="mt-0 rounded-xl">إلغاء</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                vibrateSuccess();
-                resetProgress();
-                setShowResetAlert(false);
-                onClose();
-              }}
-              className="bg-red-500 hover:bg-red-600 rounded-xl"
-            >
-              نعم، تصفير كل شيء
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
-        <AlertDialogContent dir="rtl" className="rounded-[24px]">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-right">حذف البيانات السحابية؟</AlertDialogTitle>
-            <AlertDialogDescription className="text-right">
-              سيُحذف صف تقدمك من الخادم نهائياً. نسختك المحلية ستبقى على الجهاز.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-row items-center gap-2 sm:justify-start">
-            <AlertDialogCancel className="mt-0 rounded-xl">إلغاء</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteCloud} className="bg-red-500 hover:bg-red-600 rounded-xl">
-              نعم، احذف
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {showAuthModal && (
-        <AuthModal onClose={() => setShowAuthModal(false)} onSuccess={() => getCurrentUser().then((u) => setUser(u ? { email: u.email } : null))} />
-      )}
-    </>
-  );
+    if (action === "delete") {
+      if (deleteText !== "احذف") throw new Error("اكتب احذف للتأكيد");
+      const owner = state.ownerId;
+      if (!owner || useHifzStore.getState().ownerId !== owner) throw new Error("تغيّر الحساب؛ لم ننفذ الحذف");
+      const result = await deleteAccount(owner);
+      if (result.error) throw new Error(result.error.message);
+      try { await logout(); } catch { await clearDeletedLocalSession(owner); }
+      if (useHifzStore.getState().ownerId === owner) { stopCloudSync(); stopAudio(); useHifzStore.getState().switchOwner(null); useAuthStore.getState().setAuth({ user: null }); }
+      forgetWorkspace(owner); forgetVolatileOwner(owner);
+    }
+    setConfirm(null);
+  }, confirm === "reset" ? "أُكدت إعادة الضبط ونُسخة الرجوع محفوظة" : confirm === "transfer" ? "نُقل تقدم الضيف بموافقتك والمزامنة مؤكدة" : confirm === "local" ? "أُزيلت نسخة هذه المساحة من الجهاز" : "أُكد حذف الحساب وبياناته من الخادم");
+  const copies = recoveryCopies(state.ownerId);
+  return <AppModal title="الإعدادات" onClose={() => { if (!busy) onClose(); }}>
+    <div className="p-5 space-y-6 overflow-y-auto min-h-0" tabIndex={0} aria-label="خيارات الإعدادات">
+      <section className="space-y-3"><h2 className="font-bold text-lg flex items-center gap-2"><Cloud className="size-5 text-primary" aria-hidden /> الحساب والحفظ</h2>
+        <p className="text-sm text-muted-foreground">{user ? <span dir="ltr">{user.email}</span> : "وضع الضيف · مساحة مستقلة على هذا الجهاز"}</p>
+        <p className="text-sm">{status.syncPhase === "synced" ? `مزامنة مؤكدة ${status.syncedAt ? new Date(status.syncedAt).toLocaleTimeString("ar-DZ") : ""}` : status.syncPhase === "syncing" ? "جارٍ الاتصال بالخادم…" : status.syncPhase === "pending" ? "تعديلات محفوظة محليًا تنتظر الرفع" : status.syncPhase === "error" ? "المزامنة تحتاج إعادة محاولة" : "حفظ محلي؛ صدّر نسخة بين حين وآخر"}</p>
+        {status.syncError && <p role="alert" className="text-sm text-destructive">{status.syncError}</p>}
+        {user ? <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy} onClick={() => run(synchronizeNow, "المزامنة مؤكدة دون تكرار الرفع")}><Cloud className="size-4" aria-hidden /> مزامنة الآن</Button><Button variant="ghost" disabled={busy} onClick={() => run(logout)}><LogOut className="size-4" aria-hidden /> خروج إلى الضيف</Button></div> : <Button className="w-full min-h-12" onClick={() => setAuth(true)}>{isSupabaseConfigured ? "دخول لحفظ نسخة سحابية" : "الحساب (المزامنة غير مهيأة)"}</Button>}
+        {state.ownerId && status.guestTransferAvailable && <div className="rounded-xl bg-primary/10 p-3 space-y-2"><p className="text-sm">توجد بيانات في مساحة الضيف. لم نرفعها إلى هذا الحساب. تأكد أنها تخصك قبل نقلها.</p><Button variant="outline" onClick={() => setConfirm("transfer")} disabled={busy}>نقل بيانات الضيف إلى حسابي</Button></div>}
+        <p className="text-xs text-muted-foreground">خروجك لا يحذف المحفوظ. الحسابات لا تتشارك الملاحظات أو الإنجاز، وقراءة الخادم الفاشلة تمنع أي كتابة.</p>
+      </section>
+      <fieldset disabled={!editable} className="space-y-3 border-t border-border pt-4"><legend className="font-bold text-lg">المظهر والقراءة</legend>
+        <div className="flex flex-wrap gap-2" aria-label="مظهر التطبيق">{([["dark", "داكن"], ["ocean-dark", "محيط داكن"], ["ocean", "محيط"], ["warm", "دافئ"], ["light", "فاتح"]] as const).map(([id, label]) => <button key={id} aria-pressed={theme === id} className={`rounded-xl min-h-11 px-3 text-sm border ${theme === id ? "border-primary bg-primary/10 text-primary font-bold" : "border-border"}`} onClick={() => setTheme(id)}>{label}</button>)}</div>
+        <div className="flex items-center justify-between gap-3"><label htmlFor="arabic-numerals" className="text-sm">الأرقام العربية (١٢٣)</label><Switch aria-label="الأرقام العربية" id="arabic-numerals" checked={arabic} onCheckedChange={(value) => state.updateSettings({ arabicNumerals: value })} /></div>
+        <div className="flex items-center justify-between gap-3"><label htmlFor="quiet-mode" className="text-sm">وضع هادئ — تقليل الحركة والاهتزاز والصوت</label><Switch aria-label="الوضع الهادئ" id="quiet-mode" checked={state.settings.quietMode} onCheckedChange={(value) => state.updateSettings({ quietMode: value })} /></div>
+        <label className="block text-sm">حجم الواجهة: {Math.round(state.settings.fontScale * 100)}%<input type="range" min={1} max={1.3} step={0.05} value={state.settings.fontScale} aria-label="تكبير حجم النص" className="w-full min-h-11 accent-[var(--primary)]" onChange={(e) => state.updateSettings({ fontScale: Number(e.target.value) })} /></label>
+      </fieldset>
+      <fieldset disabled={!editable} className="space-y-3 border-t border-border pt-4"><legend className="font-bold text-lg">الوتيرة والمحفوظ</legend>
+        <label className="block text-sm">التلاوة اليومية<select value={state.settings.reciteJuzPerDay} aria-label="عدد أجزاء التلاوة" className="w-full mt-1 p-3 rounded-xl bg-background border border-border" onChange={(e) => state.updateSettings({ reciteJuzPerDay: Number(e.target.value) })}>{[1, 2, 3].map((n) => <option value={n} key={n}>{formatNum(n, arabic)} جزء / يوم</option>)}</select></label>
+        <label className="block text-sm">الاستماع اليومي<select value={state.settings.listenHizbPerDay} aria-label="عدد أحزاب الاستماع" className="w-full mt-1 p-3 rounded-xl bg-background border border-border" onChange={(e) => state.updateSettings({ listenHizbPerDay: Number(e.target.value) })}>{[1, 2, 3].map((n) => <option value={n} key={n}>{formatNum(n, arabic)} حزب / يوم</option>)}</select></label>
+        <p className="text-xs text-muted-foreground">تغيير الوتيرة يبدأ بخطة اليوم التالي؛ مواد الأيام المسجلة لا تُفسّر من جديد.</p>
+        <Button variant="outline" className="w-full min-h-11" onClick={() => setPrior(new Set(memorizedIds(state)))}>تحديد المحفوظ السابق أو تصحيحه</Button>
+        <p className="text-xs text-muted-foreground">التصريح بالمحفوظ لا يولّد أورادًا ماضية، ويمكن أن يكون سورًا غير متصلة.</p>
+      </fieldset>
+      <fieldset disabled={!editable} className="space-y-3 border-t border-border pt-4"><legend className="font-bold text-lg flex items-center gap-2"><Bell className="size-5 text-f-gold" aria-hidden /> تذكير محلي اختياري</legend>
+        <p className="text-sm text-muted-foreground leading-relaxed">أفضل جهد أثناء فتح التطبيق فقط. لا خدمة Push في الخلفية؛ قد يعلّق الهاتف المؤقت. تعطيل التذكير يلغي الموعد السابق.</p>
+        <label className="block text-sm">الوقت المحلي<input type="time" value={reminder} aria-label="وقت التذكير" onChange={(e) => setReminder(e.target.value)} className="w-full mt-1 p-3 rounded-xl bg-background border border-border" /></label>
+        <p className="text-sm">{state.settings.reminderTime ? `مفعّل عند ${state.settings.reminderTime}` : "غير مفعّل — لم يُطلب إذن تلقائيًا"}</p>
+        <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={enableReminder}>فعّل بهذا الوقت</Button><Button variant="outline" onClick={() => run(async () => { const granted = await ensureNotificationPermission(); if (!granted || !await showReminderNotification("هذا اختبار محلي؛ التذكير المجدول يحتاج إبقاء التطبيق مفتوحًا.")) throw new Error("الإشعارات غير متاحة هنا؛ تحقق من إذن الموقع أو تثبيت التطبيق"); }, "أُرسل تذكير تجريبي محلي")}>اختبار التذكير</Button><Button variant="ghost" onClick={() => state.updateSettings({ reminderTime: null })} disabled={!state.settings.reminderTime}>تعطيل</Button></div>
+      </fieldset>
+      <section className="space-y-3 border-t border-border pt-4"><h2 className="font-bold text-lg">النسخ الاحتياطي والاسترجاع</h2>
+        <p className="text-sm text-muted-foreground">ملف البيانات يشمل الملاحظات والتقييمات والمسودات؛ احفظه في مكان خاص. تُنشأ نسخة رجوع محلية قبل أي استبدال.</p>
+        <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={exportData}><Download className="size-4" aria-hidden /> تصدير بياناتي</Button><Button variant="outline" disabled={busy} onClick={() => fileInput.current?.click()}><FileUp className="size-4" aria-hidden /> معاينة نسخة للاستيراد</Button></div>
+        {state.ownerId && <Button variant="outline" disabled={busy} onClick={() => run(async () => {
+          const owner = state.ownerId!; const records = await fetchCloudRecoveries(owner);
+          if (useHifzStore.getState().ownerId !== owner) throw new Error("تغيّر الحساب؛ لم نعرض نسخ حساب آخر");
+          if (!records.length) { toast.info("لا نسخ رجوع سحابية متاحة بعد"); return; }
+          const latest = records[0];
+          downloadJson(latest.snapshot ? { app: "hosoon", version: 4, exportedAt: latest.created_at, state: latest.snapshot } : { app: "hosoon-cloud-legacy-row", revision: latest.revision, row: latest.legacy_row }, `hosoon-cloud-recovery-${latest.revision}.json`);
+        })}>تصدير آخر نسخة رجوع سحابية</Button>}
+        <input ref={fileInput} type="file" accept="application/json,.json" className="hidden" aria-label="ملف النسخة الاحتياطية" onChange={(e) => { void pickBackup(e.target.files?.[0]); e.currentTarget.value = ""; }} />
+        {status.storageError && <Button variant="outline" onClick={() => { const raw = originalWorkspaceRaw(state.ownerId); if (raw) downloadText(raw, `hosoon-original-${localDateKey()}.json`); else toast.info("لا نسخة أصلية متاحة في تخزين المتصفح"); }}>تصدير الملف المحلي الأصلي دون تعديله</Button>}
+        {copies.length > 0 && <details className="rounded-xl bg-surface p-3"><summary className="text-sm font-semibold cursor-pointer min-h-8">نسخ الرجوع المحلية ({copies.length})</summary><ul className="space-y-2 mt-2">{copies.map((copy, index) => <li key={copy.key} className="flex flex-wrap items-center gap-2"><span className="text-xs flex-1">نسخة {index + 1}</span><Button size="sm" variant="outline" onClick={() => downloadText(copy.raw, `hosoon-recovery-${index + 1}.json`)}>تصدير</Button><Button size="sm" variant="ghost" onClick={() => { try { const result = validateBackup(JSON.parse(copy.raw)); if (!result.ok) toast.error(result.error); else setPending({ file: result.file, summary: result.summary }); } catch { toast.error("نسخة رجوع غير صالحة؛ صدّرها للفحص"); } }}>معاينة الاسترجاع</Button></li>)}</ul></details>}
+      </section>
+      <OfflineDownloads />
+      <section className="space-y-3 border-t border-border pt-4"><h2 className="font-bold text-lg flex items-center gap-2"><Shield className="size-5" aria-hidden /> الخصوصية والمصدر</h2><p className="text-sm text-muted-foreground leading-relaxed">مصدر القرآن المعتمد ثابت. التعديلات السابقة محفوظة كمسودات؛ أي تصحيح جديد اقتراح يحتاج سببًا ومصدرًا ومراجعة مختص، ولا يغيّر نص القراءة.</p><p className="text-sm text-muted-foreground">الصوت يأتي من مزودي التسجيلات؛ لا نسجل صوتك ولا نطلب الميكروفون. سجل التشخيص محلي ولا يحتوي البريد أو الملاحظات أو الرموز السرية.</p><Button variant="ghost" size="sm" onClick={() => downloadJson(diagnosticReport(), "hosoon-local-diagnostics.json")}>تصدير تشخيص محلي اختياري</Button></section>
+      <section className="space-y-3 border-t border-border pt-4"><h2 className="font-bold text-lg text-destructive">عمليات تحتاج تأكيدًا</h2>
+        <Button variant="outline" className="w-full justify-start min-h-11 text-destructive" disabled={busy} onClick={() => setConfirm("reset")}><Trash2 className="size-4" aria-hidden />{state.ownerId ? "تصفير تقدم الحساب على كل الأجهزة" : "إعادة ضبط تقدم الضيف على هذا الجهاز"}</Button>
+        {state.ownerId && <><Button variant="outline" className="w-full min-h-11" disabled={busy} onClick={() => setConfirm("local")}>خروج وإزالة نسخة الحساب من هذا الجهاز فقط</Button><Button variant="destructive" className="w-full min-h-11" disabled={busy} onClick={() => { setDeleteText(""); setConfirm("delete"); }}>حذف الحساب نهائيًا</Button></>}
+        <p className="text-xs text-muted-foreground">إزالة النسخة المحلية لا تصفّر السحابة. الحساب يتطلب تأكيد الخادم قبل التصفير، ولا تُحذف صور المصحف معه.</p>
+      </section>
+    </div>
+    {auth && <AuthModal onClose={() => setAuth(false)} />}
+    {prior && <AppModal title="المحفوظ السابق" onClose={() => setPrior(null)}><div className="p-5 overflow-y-auto space-y-4"><PriorSelection selected={prior} onChange={setPrior} arabic={arabic} /><Button className="w-full min-h-12" onClick={() => { state.declarePriorMemorization([...prior]); setPrior(null); toast.success("حُدث المحفوظ فقط، دون إنشاء أيام نشاط أو إنجازات تاريخية"); }}>احفظ تصريح المحفوظ</Button></div></AppModal>}
+    {pending && <AppModal title="معاينة الاستيراد" onClose={() => { if (!busy) setPending(null); }}><div className="p-5 space-y-3 overflow-y-auto"><p className="text-sm text-muted-foreground">سيستبدل هذا الملف مساحة {state.ownerId ? "الحساب الحالية عبر حقبة خادم جديدة لكل الأجهزة" : "الضيف على هذا الجهاز"}. راجع الأرقام قبل الموافقة.</p><dl className="grid grid-cols-2 text-sm gap-2"><dt>الأثمان المحفوظة</dt><dd>{pending.summary.memorized}</dd><dt>الأيام المكتملة المؤرخة</dt><dd>{pending.summary.daysCompleted}</dd><dt>الملاحظات</dt><dd>{pending.summary.notes}</dd><dt>الجلسات</dt><dd>{pending.summary.sessions}</dd><dt>الرصيد</dt><dd>{pending.summary.totalXp}</dd></dl>{pending.file.state.ownerId !== state.ownerId && <p className="text-sm text-f-gold">الملف من مساحة أخرى؛ موافقتك تعني نقل محتواه إلى المساحة الحالية.</p>}<p className="text-xs text-muted-foreground">المسودات لا تغيّر القرآن. إذا تعذرت نسخة الرجوع أو تأكيد الخادم، لا يجري الاستبدال.</p><Button className="w-full min-h-12" disabled={busy} onClick={() => run(async () => { await replaceAllProgress(pending.file.state); setPending(null); }, "أُكد الاستيراد ونسخة الرجوع محفوظة")}>{busy ? "جارٍ التحقق…" : "أوافق على الاستبدال"}</Button><Button variant="outline" className="w-full min-h-11" disabled={busy} onClick={() => setPending(null)}>إلغاء</Button></div></AppModal>}
+    {confirm && confirm !== "delete" && <ConfirmModal title={confirm === "reset" ? "تأكيد إعادة الضبط" : confirm === "transfer" ? "نقل بيانات الضيف؟" : "إزالة نسخة هذا الجهاز؟"} message={confirm === "reset" ? state.ownerId ? "سيُصفّر التقدم والملاحظات والمسودات في الحساب. يلزم الاتصال وتأكيد الخادم؛ الأجهزة القديمة لن تعيد إحياء البيانات المحذوفة. نسخة رجوع محفوظة هنا." : "سيُصفّر تقدم الضيف والملاحظات والمسودات على هذا الجهاز فقط، مع نسخة رجوع محلية." : confirm === "transfer" ? "لنقل بيانات الضيف يجب أن تكون تخصك. ستُدمج مع حسابك بعد قراءة موثقة؛ مساحة الضيف الأصلية تبقى نسخة مستقلة." : "سيجري الخروج وإزالة النسخة المحلية لهذا الحساب ونسخ الرجوع. السحابة لا تتغير، وقد تستعيدها عند الدخول. صدّر التعديلات غير المرفوعة أولًا."} confirmLabel={confirm === "transfer" ? "انقل بياناتي" : "أؤكد"} destructive={confirm !== "transfer"} busy={busy} onClose={() => setConfirm(null)} onConfirm={executeConfirmation} />}
+    {confirm === "delete" && <AppModal title="حذف الحساب نهائيًا" onClose={() => { if (!busy) setConfirm(null); }}><div className="p-5 space-y-4"><p className="text-sm text-destructive">سيُحذف حسابك وتقدم الخادم واقتراحاتك، ونسخة الحساب من هذا الجهاز. لا يمكننا حذف ملفات التصدير أو نسخ أجهزة غير متصلة عن بعد. بيانات الضيف المستقلة لا تتغير.</p><label className="block text-sm">اكتب «احذف» للتأكيد<input value={deleteText} onChange={(e) => setDeleteText(e.target.value)} className="w-full mt-2 p-3 rounded-xl bg-background border border-border" aria-label="تأكيد حذف الحساب" /></label><Button variant="destructive" className="w-full min-h-12" disabled={busy || deleteText !== "احذف"} onClick={executeConfirmation}>{busy ? "جارٍ التحقق…" : "احذف الحساب وبياناته"}</Button></div></AppModal>}
+  </AppModal>;
 }

@@ -65,14 +65,20 @@ export const TOTAL_HIZBS = 60;
 export const TOTAL_JUZS = 30;
 export const TOTAL_SURAHS = 114;
 
+// Freeze approved rows at runtime as well as keeping proposals separate.
+for (const row of thumuns) { Object.freeze(row.pages); Object.freeze(row); }
+for (const row of surahs) Object.freeze(row);
+Object.freeze(thumuns); Object.freeze(surahs);
+
 const surahByNumber = new Map(surahs.map((s) => [s.number, s]));
 
 export function getThumun(id: number, edited?: EditedThumuns): Thumun | null {
-  if (id < 1 || id > TOTAL_THUMUNS) return null;
+  if (!Number.isInteger(id) || id < 1 || id > TOTAL_THUMUNS) return null;
   const base = thumuns[id - 1];
   if (!base) return null;
-  const edit = edited?.[id];
-  return edit ? { ...base, ...edit } : base;
+  // User corrections are archived proposals, never a replacement for approved Quran data.
+  void edited;
+  return base;
 }
 
 export function getAllThumuns(): Thumun[] {

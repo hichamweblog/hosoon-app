@@ -1,66 +1,48 @@
-/**
- * Daily reminder scheduling (best-effort local notifications).
- * Works while the app is open or in a kept-alive PWA window; true background
- * push would need a push server — documented limitation in README.
- */
 import { localDateKey } from "./format";
-
 let timer: ReturnType<typeof setTimeout> | null = null;
-let scheduledFor: string | null = null;
-
+let generation = 0;
+let lastFired = "";
+const validTime = (value: string) => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
 export async function ensureNotificationPermission(): Promise<boolean> {
   if (typeof window === "undefined" || !("Notification" in window)) return false;
   if (Notification.permission === "granted") return true;
   if (Notification.permission === "denied") return false;
-  const res = await Notification.requestPermission();
-  return res === "granted";
+  try { return await Notification.requestPermission() === "granted"; } catch { return false; }
 }
-
-export function showReminderNotification(body: string) {
+export async function showReminderNotification(body: string, stillValid: () => boolean = () => true): Promise<boolean> {
+  if (typeof window === "undefined" || !("Notification" in window) || Notification.permission !== "granted") return false;
   try {
-    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-      new Notification("حصون — وردك اليوم", {
-        body,
-        tag: "hosoon-daily",
-        icon: "/icon-192.png",
-        lang: "ar",
-        dir: "rtl",
-      });
-    }
-  } catch {
-    // ignore
-  }
+    const options: NotificationOptions = { body, tag: "hosoon-daily", icon: "/icon-192.png", lang: "ar", dir: "rtl" };
+    // Mobile browsers commonly reject `new Notification`; use the registered worker.
+    const registration = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : undefined;
+    if (!stillValid()) return false;
+    if (registration) await registration.showNotification("حصون — وردك اليوم", options);
+    else new Notification("حصون — وردك اليوم", options);
+    return true;
+  } catch { return false; }
 }
-
-function msUntil(hhmm: string): number {
-  const [h, m] = hhmm.split(":").map(Number);
-  const now = new Date();
-  const at = new Date();
-  at.setHours(h, m, 0, 0);
-  if (at.getTime() <= now.getTime()) at.setDate(at.getDate() + 1);
+export function reminderDelay(hhmm: string, now = new Date()): number {
+  if (!validTime(hhmm)) throw new Error("وقت غير صالح");
+  const [hour, minute] = hhmm.split(":").map(Number), at = new Date(now);
+  at.setHours(hour, minute, 0, 0);
+  if (at <= now) at.setDate(at.getDate() + 1);
   return at.getTime() - now.getTime();
 }
-
-/** Schedule (or reschedule) the daily reminder at "HH:MM". */
-export async function scheduleDailyReminder(hhmm: string | null) {
-  if (timer) {
-    clearTimeout(timer);
-    timer = null;
-    scheduledFor = null;
-  }
-  if (!hhmm || typeof window === "undefined") return;
-  const ok = await ensureNotificationPermission();
-  if (!ok) return;
-
-  const fire = () => {
-    const today = localDateKey();
-    if (scheduledFor !== today) {
-      scheduledFor = today;
-      showReminderNotification("حان وقت الحصون الخمسة — تلاوة، تحضيراً، حفظاً، ومراجعة.");
+export function cancelDailyReminder() { generation++; if (timer) clearTimeout(timer); timer = null; }
+/** This coordinator NEVER prompts for permission and makes no background-delivery promise. */
+export function scheduleDailyReminder(hhmm: string | null): void {
+  cancelDailyReminder();
+  if (!hhmm || !validTime(hhmm) || typeof window === "undefined" || !("Notification" in window) || Notification.permission !== "granted") return;
+  const current = generation;
+  const schedule = () => { timer = setTimeout(() => { void fire(); }, reminderDelay(hhmm)); };
+  const fire = async () => {
+    if (current !== generation) return;
+    const key = `${localDateKey()}:${hhmm}`;
+    if (lastFired !== key) {
+      const shown = await showReminderNotification("وقت وردك — اقرأ وراجع على وتيرتك.", () => current === generation);
+      if (shown) lastFired = key;
     }
-    // reschedule for tomorrow
-    timer = setTimeout(fire, msUntil(hhmm));
+    if (current === generation) schedule();
   };
-  // setTimeout maxes out at ~24.8 days — always fine for a daily loop
-  timer = setTimeout(fire, Math.min(msUntil(hhmm), 2_000_000_000));
+  schedule();
 }

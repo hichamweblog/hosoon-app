@@ -1,4 +1,5 @@
 export const vibrate = (pattern: number | number[] = 50) => {
+  if (typeof document !== "undefined" && document.documentElement.dataset.quiet === "true") return;
   if (typeof window !== "undefined" && "navigator" in window && navigator.vibrate) {
     navigator.vibrate(pattern);
   }
@@ -10,7 +11,7 @@ export const vibrateLight = () => vibrate(20);
 let audioCtx: AudioContext | null = null;
 
 export const playDing = () => {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || document.documentElement.dataset.quiet === "true") return;
   try {
     const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctx) return;

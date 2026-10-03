@@ -104,7 +104,7 @@ describe("مُحوِّل الحصون الخمسة", () => {
     expect(t.reciteJuz).toBe(1);
     expect(t.taskKeys).toEqual(["maintain_recite"]);
     const t2 = getFortressTasks(31, { maintain: true, weakIds: [1] });
-    expect(t2.taskKeys).toContain("review_near");
+    expect(t2.taskKeys).toEqual(["maintain_recite"]); // weak extras are free review, never required reviews
   });
 
   it("كل مهمة في taskKeys لها قيمة XP", () => {

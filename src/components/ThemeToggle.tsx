@@ -12,7 +12,7 @@ export default function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   const mounted = useMounted();
 
-  if (!mounted) return <div className="w-9 h-9" aria-hidden />;
+  if (!mounted) return <div className="w-11 h-11" aria-hidden />;
 
   const currentTheme = APP_THEMES.find((t) => t.id === theme) ?? APP_THEMES[0];
 
@@ -30,7 +30,7 @@ export default function ThemeToggle() {
       variant="ghost"
       size="icon"
       onClick={cycleTheme}
-      className="rounded-full w-9 h-9 text-muted-foreground hover:text-primary transition-colors"
+      className="rounded-full w-11 h-11 text-muted-foreground hover:text-primary transition-colors"
       title={`السمة الحالية: ${currentTheme.name} — اضغط للتبديل`}
       aria-label={`المظهر: ${currentTheme.name} — اضغط للتبديل`}
     >

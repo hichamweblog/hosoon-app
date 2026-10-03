@@ -1,193 +1,143 @@
-import { createClient, type User } from "@supabase/supabase-js";
+import { createClient, type User, type AuthChangeEvent } from "@supabase/supabase-js";
+import { correctionFieldsSchema } from "./progress/schema";
+import { decodeCloudRow, type CloudRecord } from "./progress/cloud-dto";
+import { parseProgress } from "./progress/schema";
+import { snapshotOf, type ProgressData } from "./progress/types";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
-
-export const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl!, supabaseAnonKey!)
-  : null;
-
-export interface CloudUserProgress {
-  user_id: string;
-  current_day: number;
-  streak: number;
-  best_streak: number;
-  total_xp: number;
-  completed_tasks: Record<string, Record<string, boolean>>;
-  daily_log: Record<string, unknown>;
-  session_log: Record<string, unknown>;
-  notes: Record<string, string>;
-  thumun_ratings: Record<string, string>;
-  edited_thumuns: Record<string, unknown>;
-  khatma_completed_at: string | null;
-  maintain: { active: boolean; day: number };
-  settings: Record<string, unknown>;
-  updated_at: string;
-}
-
-export type CloudProgressInput = Omit<CloudUserProgress, "user_id" | "updated_at"> & {
-  updated_at?: string;
-};
-
-// ─── Authentication ────────────────────────────────────────────
-
+const publicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+// Local development can proxy Supabase through the same preview origin.
+const url = publicUrl === "/supabase" ? `${typeof window !== "undefined" ? window.location.origin : process.env.APP_ORIGIN ?? "https://hosoon.invalid"}/supabase` : publicUrl;
+const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+export const isSupabaseConfigured = !!(url && key && !url.includes("your-project") && !key.includes("your-anon"));
+export const AUTH_STORAGE_KEY = url ? `sb-${new URL(url).hostname.split(".")[0]}-auth-token` : "hosoon-auth-unconfigured";
+export const supabase = isSupabaseConfigured ? createClient(url!, key!, { auth: { storageKey: AUTH_STORAGE_KEY } }) : null;
+const unavailable = () => ({ data: null, error: { message: "المزامنة السحابية غير مهيأة" } });
+const origin = () => typeof window !== "undefined" ? window.location.origin : undefined;
 export async function signInWithEmailPassword(email: string, password: string) {
-  if (!supabase) return { data: null, error: { message: "المزامنة السحابية غير مهيأة" } };
-  return await supabase.auth.signInWithPassword({ email, password });
+  return supabase ? supabase.auth.signInWithPassword({ email: email.trim(), password }) : unavailable();
 }
-
 export async function signUpWithEmailPassword(email: string, password: string) {
-  if (!supabase) return { data: null, error: { message: "المزامنة السحابية غير مهيأة" } };
-  return await supabase.auth.signUp({
-    email,
-    password,
-    options: { emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined },
-  });
+  return supabase ? supabase.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: origin() } }) : unavailable();
 }
-
 export async function signInWithMagicLink(email: string) {
-  if (!supabase) return { data: null, error: { message: "المزامنة السحابية غير مهيأة" } };
-  return await supabase.auth.signInWithOtp({
-    email,
-    options: {
-      emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
-    },
-  });
+  return supabase ? supabase.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: origin() } }) : unavailable();
 }
-
 export async function sendPasswordReset(email: string) {
-  if (!supabase) return { data: null, error: { message: "المزامنة السحابية غير مهيأة" } };
-  return await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
-  });
+  return supabase ? supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: origin() ? `${origin()}/auth/recovery` : undefined }) : unavailable();
 }
-
-export async function signOutUser() {
-  if (!supabase) return { error: null };
-  return await supabase.auth.signOut();
+export async function updatePassword(password: string) {
+  if (!supabase) return unavailable();
+  if (password.length < 8) return { data: null, error: { message: "كلمة المرور يجب أن تكون 8 أحرف على الأقل" } };
+  return supabase.auth.updateUser({ password });
 }
-
+export async function signOutUser(expectedOwner?: string) {
+  if (supabase && expectedOwner) { const { data } = await supabase.auth.getSession(); if (data.session?.user.id !== expectedOwner) return { error: { message: "تغيّر الحساب؛ أُلغيت عملية الخروج القديمة" } }; }
+  return supabase ? supabase.auth.signOut({ scope: "local" }) : { error: null };
+}
 export async function getCurrentUser(): Promise<User | null> {
   if (!supabase) return null;
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
+  const { data, error } = await supabase.auth.getUser();
+  if (error) return null;
+  return data.user;
 }
-
-/** Subscribe to auth changes (magic-link return, cross-tab, token refresh). */
-export function onAuthChange(cb: (user: User | null) => void): () => void {
+export function onAuthChange(cb: (user: User | null, event: AuthChangeEvent) => void): () => void {
   if (!supabase) return () => {};
-  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-    cb(session?.user ?? null);
+  const { data } = supabase.auth.onAuthStateChange((event, session) => {
+    // Never await Supabase calls inside its auth lock.
+    queueMicrotask(() => cb(session?.user ?? null, event));
   });
   return () => data.subscription.unsubscribe();
 }
-
-// ─── Cloud progress sync ───────────────────────────────────────
-
-export async function fetchProgressFromCloud() {
-  if (!supabase) return { data: null, error: { message: "Supabase not configured" } };
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { data: null, error: { message: "User not authenticated" } };
-
-  const { data, error } = await supabase
-    .from("user_progress")
-    .select("*")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  return { data: data as CloudUserProgress | null, error };
+async function requireOwner(owner: string) {
+  if (!supabase) throw new Error("المزامنة السحابية غير مهيأة");
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user || data.user.id !== owner) throw new Error("انتهت الجلسة أو تغير الحساب؛ لم تُرفع بياناتك");
 }
-
-export async function syncProgressToCloud(input: CloudProgressInput) {
-  if (!supabase) return { error: { message: "Supabase not configured" } };
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: { message: "User not authenticated" } };
-
-  const payload: CloudUserProgress = {
-    ...input,
-    user_id: user.id,
-    updated_at: input.updated_at ?? new Date().toISOString(),
-  };
-  const { error } = await supabase
-    .from("user_progress")
-    .upsert(payload, { onConflict: "user_id" });
-  return { error };
+function cloudError(error: { message: string; code?: string }): Error {
+  if (["40001", "HSC01"].includes(error.code ?? "") || error.message.includes("HOSOON_CONFLICT")) return new CloudConflict();
+  if (error.code === "42883" || error.message.includes("schema cache")) return new Error("انشر ترحيل Supabase الآمن قبل تفعيل المزامنة");
+  return new Error("تعذّر الاتصال بالمزامنة. بقي تقدمك محليًا؛ حاول لاحقًا.");
 }
-
-export async function deleteCloudData() {
-  if (!supabase) return { error: { message: "Supabase not configured" } };
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: { message: "User not authenticated" } };
-  const { error } = await supabase.from("user_progress").delete().eq("user_id", user.id);
-  return { error };
+export class CloudConflict extends Error { constructor() { super("تغيّر إصدار الخادم؛ يُعاد الدمج قبل الكتابة"); this.name = "CloudConflict"; } }
+export async function fetchCloudProgress(owner: string, signal?: AbortSignal): Promise<CloudRecord> {
+  await requireOwner(owner);
+  let query = supabase!.from("user_progress").select("*").eq("user_id", owner);
+  if (signal) query = query.abortSignal(signal);
+  const { data, error } = await query.maybeSingle();
+  if (error) throw cloudError(error); // Error is NEVER interpreted as an empty row.
+  return decodeCloudRow(data, owner);
 }
-
-// ─── Community corrections (بيانات الأثمان) ─────────────────────
-
-export async function submitThumunCorrection(input: {
-  thumunId: number;
-  fields: Record<string, unknown>;
-  note: string;
-}) {
-  if (!supabase) return { error: { message: "Supabase not configured" } };
-  const { data: { user } } = await supabase.auth.getUser();
-  const { error } = await supabase.from("thumun_corrections").insert({
-    thumun_id: input.thumunId,
-    fields: input.fields,
-    note: input.note,
-    user_id: user?.id ?? null,
+export async function saveCloudProgress(owner: string, data: ProgressData, expected: CloudRecord, signal?: AbortSignal): Promise<CloudRecord> {
+  await requireOwner(owner);
+  const snapshot = parseProgress(snapshotOf(data));
+  if (snapshot.ownerId !== owner || snapshot.epoch !== expected.epoch) throw new Error("رفض رفع بيانات بملكية أو حقبة غير مطابقة");
+  let query = supabase!.rpc("save_hosoon_progress", {
+    p_expected_revision: expected.revision, p_expected_epoch: expected.epoch, p_snapshot: snapshot,
   });
-  return { error };
+  if (signal) query = query.abortSignal(signal);
+  const { data: result, error } = await query;
+  if (error) throw cloudError(error);
+  return decodeCloudRow(Array.isArray(result) ? result[0] : result, owner);
+}
+export async function replaceCloudProgress(owner: string, data: ProgressData, expected: CloudRecord): Promise<CloudRecord> {
+  await requireOwner(owner);
+  const snapshot = parseProgress({ ...snapshotOf(data), ownerId: owner, epoch: expected.epoch });
+  const { data: result, error } = await supabase!.rpc("reset_hosoon_progress", {
+    p_expected_revision: expected.revision, p_snapshot: snapshot,
+  });
+  if (error) throw cloudError(error);
+  return decodeCloudRow(Array.isArray(result) ? result[0] : result, owner);
+}
+export async function submitThumunCorrection(input: { thumunId: number; fields: Record<string, unknown>; note: string; source?: string; expectedOwnerId: string }) {
+  if (!supabase) return unavailable();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user || user.id !== input.expectedOwnerId) return { error: { message: "سجّل دخولك لإرسال الاقتراح؛ يمكنك حفظ المسودة محليًا" } };
+  if (!Number.isInteger(input.thumunId) || input.thumunId < 1 || input.thumunId > 480) return { error: { message: "رقم ثمن غير صالح" } };
+  const fields = correctionFieldsSchema.safeParse(input.fields);
+  if (!fields.success || input.note.trim().length < 10 || input.note.length > 2000 || !input.source?.trim() || input.source.length > 1000)
+    return { error: { message: "تحقق من حدود الآيات وأضف سببًا ومصدرًا للاقتراح" } };
+  return supabase.from("thumun_corrections").insert({
+    thumun_id: input.thumunId, fields: fields.data, note: input.note.trim(), source: input.source.trim(), user_id: user.id,
+  });
+}
+export async function deleteAccount(expectedOwnerId: string) {
+  if (!supabase) return { error: { message: "الحساب غير مهيأ" } };
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session || session.user.id !== expectedOwnerId) return { error: { message: "سجّل دخولك أولًا" } };
+  try {
+    const response = await fetch("/api/account", {
+      method: "DELETE", headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmation: "DELETE", ownerId: expectedOwnerId }),
+    });
+    const body = await response.json();
+    if (!response.ok) return { error: { message: typeof body.error === "string" ? body.error : "تعذّر حذف الحساب" } };
+    return { error: null };
+  } catch { return { error: { message: "تعذّر الاتصال. لم يُؤكد حذف الحساب." } }; }
+}
+export { mergeProgress } from "./progress/merge";
+
+export async function fetchCloudMetadata(owner: string): Promise<CloudRecord> {
+  await requireOwner(owner);
+  const { data, error } = await supabase!.from("user_progress").select("user_id,revision,epoch").eq("user_id", owner).maybeSingle();
+  if (error) throw cloudError(error);
+  if (!data) return { snapshot: null, revision: 0, epoch: 0 };
+  if (data.user_id !== owner || !Number.isSafeInteger(data.revision) || data.revision < 0 || !Number.isSafeInteger(data.epoch) || data.epoch < 0) throw new Error("لم يؤكد الخادم بيانات الملكية/الإصدار");
+  return { snapshot: null, revision: data.revision, epoch: data.epoch };
 }
 
-// ─── Merge helper (device-safe two-way merge) ───────────────────
-
-/**
- * Merge two progress snapshots deterministically:
- * - "amount" fields take the maximum (never lose progress),
- * - map fields union with LOCAL entries winning on key conflicts,
- * - timestamps take the newest.
- */
-export function mergeProgress<
-  T extends {
-    currentDay: number;
-    streak: number;
-    bestStreak: number;
-    totalXp: number;
-    completedTasks: Record<number | string, Record<string, boolean>>;
-    dailyLog: Record<string, { tasks: number; days: number[]; date: string }>;
-    notes: Record<number | string, string>;
-    thumunRatings: Record<number | string, string>;
-    editedThumuns: Record<number | string, unknown>;
-  },
->(local: T, remote: T): T {
-  const completedTasks = {
-    ...remote.completedTasks,
-    ...local.completedTasks,
-    // union per-day flags (a check on either device counts)
-    ...Object.fromEntries(
-      Object.keys(local.completedTasks)
-        .filter((k) => remote.completedTasks[k])
-        .map((k) => [
-          k,
-          { ...remote.completedTasks[k], ...local.completedTasks[k] },
-        ]),
-    ),
-  } as T["completedTasks"];
-
-  const dailyLog = { ...remote.dailyLog, ...local.dailyLog } as T["dailyLog"];
-
-  return {
-    ...local,
-    currentDay: Math.max(local.currentDay, remote.currentDay),
-    streak: Math.max(local.streak, remote.streak),
-    bestStreak: Math.max(local.bestStreak, remote.bestStreak),
-    totalXp: Math.max(local.totalXp, remote.totalXp),
-    completedTasks,
-    dailyLog,
-    notes: { ...remote.notes, ...local.notes },
-    thumunRatings: { ...remote.thumunRatings, ...local.thumunRatings },
-    editedThumuns: { ...remote.editedThumuns, ...local.editedThumuns },
-  };
+export async function clearDeletedLocalSession(expectedOwner: string) {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    const session = raw ? JSON.parse(raw) : null;
+    if (session?.user?.id === expectedOwner) {
+      await supabase?.auth.stopAutoRefresh();
+      localStorage.removeItem(AUTH_STORAGE_KEY); localStorage.removeItem(`${AUTH_STORAGE_KEY}-user`);
+    }
+  } catch { /* The caller still clears this owner's app workspace, never another owner. */ }
+}
+export async function fetchCloudRecoveries(owner: string): Promise<{ revision: number; snapshot: unknown; legacy_row: unknown; created_at: string }[]> {
+  await requireOwner(owner);
+  const { data, error } = await supabase!.from("progress_recoveries").select("revision,snapshot,legacy_row,created_at").eq("user_id", owner).order("revision", { ascending: false }).limit(3);
+  if (error) throw cloudError(error);
+  return data ?? [];
 }

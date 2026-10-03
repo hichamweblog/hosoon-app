@@ -1,92 +1,48 @@
 "use client";
-
-import { playDing, vibrateSuccess } from "@/lib/haptic";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { playDing, vibrateSuccess } from "@/lib/haptic";
+import { showReminderNotification } from "@/lib/reminders";
 
-/**
- * Countdown timer based on an end timestamp (survives background-tab
- * throttling), with completion alerts (sound + vibration + notification).
- */
+/** Wall-clock countdown; studying time survives pauses, duration changes and nested reader. */
 export function useSessionTimer(initialMinutes = 25) {
-  const [duration, setDurationState] = useState(initialMinutes * 60);
-  const [endAt, setEndAt] = useState<number | null>(null);
-  const [remaining, setRemaining] = useState(initialMinutes * 60);
-  const [done, setDone] = useState(false);
-  const firedRef = useRef(false);
-
-  const isActive = endAt !== null;
-
-  // tick
+  const [duration, setDuration] = useState(initialMinutes * 60), [remaining, setRemaining] = useState(initialMinutes * 60);
+  const [run, setRun] = useState<{ started: number; end: number } | null>(null);
+  const [accumulated, setAccumulated] = useState(0), [pastCycles, setPastCycles] = useState(0), [now, setNow] = useState(Date.now), [done, setDone] = useState(false);
+  const fired = useRef(false);
+  const activeSeconds = run ? Math.max(0, Math.min(run.end, now) - run.started) / 1000 : 0;
+  const elapsed = Math.floor(pastCycles + accumulated + activeSeconds);
   useEffect(() => {
-    if (endAt === null) return;
-    const tick = () => {
-      const left = Math.max(0, Math.round((endAt - Date.now()) / 1000));
-      setRemaining(left);
-      if (left <= 0 && !firedRef.current) {
-        firedRef.current = true;
-        vibrateSuccess();
-        playDing();
-        try {
-          if ("Notification" in window && Notification.permission === "granted") {
-            new Notification("حصون — انتهت الجلسة", {
-              body: "أحسنت! انتقل للخطوة التالية في وردك.",
-              tag: "hosoon-session",
-            });
-          }
-        } catch {
-          /* ignore */
-        }
-        setDone(true);
-        setEndAt(null);
+    if (!run) return;
+    const id = setInterval(() => {
+      const time = Date.now(); setNow(time);
+      setRemaining(Math.max(0, Math.ceil((run.end - time) / 1000)));
+      if (time >= run.end && !fired.current) {
+        fired.current = true; setAccumulated((value) => value + (run.end - run.started) / 1000);
+        setRun(null); setDone(true); vibrateSuccess(); playDing();
+        if (document.documentElement.dataset.quiet !== "true") void showReminderNotification("انتهى وقت الجلسة. قيّم ما راجعته أو خذ استراحة.");
       }
-    };
-    tick();
-    const id = setInterval(tick, 500);
+    }, 500);
     return () => clearInterval(id);
-  }, [endAt]);
-
+  }, [run]);
   const start = useCallback(() => {
-    firedRef.current = false;
-    setDone(false);
-    setEndAt(Date.now() + remaining * 1000);
-  }, [remaining]);
-
+    if (remaining <= 0 || run) return;
+    const time = Date.now(); fired.current = false; setDone(false); setNow(time); setRun({ started: time, end: time + remaining * 1000 });
+  }, [remaining, run]);
   const pause = useCallback(() => {
-    if (endAt !== null) {
-      setRemaining(Math.max(0, Math.round((endAt - Date.now()) / 1000)));
-      setEndAt(null);
-    }
-  }, [endAt]);
-
+    if (!run) return;
+    const time = Math.min(Date.now(), run.end);
+    setAccumulated((value) => value + Math.max(0, time - run.started) / 1000);
+    setRemaining(Math.max(0, Math.ceil((run.end - time) / 1000))); setRun(null);
+  }, [run]);
   const reset = useCallback(() => {
-    firedRef.current = false;
-    setDone(false);
-    setEndAt(null);
-    setRemaining(duration);
-  }, [duration]);
-
-  const changeDuration = useCallback(
-    (deltaMinutes: number) => {
-      if (isActive) return;
-      setDurationState((d) => {
-        const next = Math.max(5 * 60, Math.min(120 * 60, d + deltaMinutes * 60));
-        setRemaining(next);
-        return next;
-      });
-      setDone(false);
-    },
-    [isActive],
-  );
-
-  return {
-    remaining,
-    duration,
-    isActive,
-    done,
-    elapsed: duration - remaining,
-    start,
-    pause,
-    reset,
-    changeDuration,
-  };
+    const time = run ? Math.max(0, Math.min(Date.now(), run.end) - run.started) / 1000 : 0;
+    setPastCycles((value) => value + accumulated + time); setAccumulated(0); setRun(null);
+    setRemaining(duration); setDone(false); fired.current = false;
+  }, [run, duration, accumulated]);
+  const changeDuration = useCallback((minutes: number) => {
+    if (run) return;
+    const next = Math.max(300, Math.min(7200, duration + minutes * 60));
+    setDuration(next); setRemaining(Math.max(0, Math.ceil(next - accumulated))); setDone(false);
+  }, [run, duration, accumulated]);
+  return { duration, remaining, elapsed, done, isActive: run !== null, start, pause, reset, changeDuration };
 }

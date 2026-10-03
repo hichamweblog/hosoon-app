@@ -1,175 +1,44 @@
 "use client";
-
-import { XP_TABLE } from "@/lib/constants";
+import { BookOpen, History, Sparkles } from "lucide-react";
 import type { FortressTasks } from "@/lib/fortress-calculator";
-import type { DailyTasks } from "@/store/useHifzStore";
-import { useHifzStore } from "@/store/useHifzStore";
+import { useHifzStore, type DailyTasks } from "@/store/useHifzStore";
 import { useSessionStore } from "@/store/useSessionStore";
-import { useXpStore } from "@/store/useXpStore";
-import { motion } from "framer-motion";
-import { BookOpen, History, Star, Undo2 } from "lucide-react";
+import { reviewDue } from "@/lib/progress/derive";
+import { getThumun } from "@/lib/quran-data";
+import { formatNum } from "@/lib/format";
+import { thumunShort } from "@/lib/quran-labels";
+import { Button } from "../ui/button";
 import TaskCheckbox from "../ui/task-checkbox";
-import ThumunCard from "./ThumunCard";
-import { thumunShort, thumunTitle } from "@/lib/quran-labels";
 
-interface Props {
-  tasks: FortressTasks;
-  dayTasks: DailyTasks;
-  currentDay: number;
-}
-
-export default function ReviewTab({ tasks, dayTasks, currentDay }: Props) {
-  const toggle = useHifzStore((s) => s.toggleTask);
-  const setRating = useHifzStore((s) => s.setThumunRating);
-  const addEvent = useXpStore((s) => s.addEvent);
-  const openSession = useSessionStore((s) => s.open);
-
-  return (
-    <div className="space-y-4">
-      {/* ─── مراجعة القريب ─── */}
-      {tasks.reviewNear.length > 0 ? (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="surface-card p-5"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <TaskCheckbox
-              checked={!!dayTasks.review_near}
-              label="تمت مراجعة القريب"
-              onToggle={(e) => {
-                if (!dayTasks.review_near) addEvent(XP_TABLE.review_near, e.clientX, e.clientY);
-                toggle(currentDay, "review_near");
-              }}
-            />
-            <h3 className="font-bold text-lg flex items-center gap-2">
-              مراجعة القريب
-              <History className="w-5 h-5 text-f-near" aria-hidden />
-            </h3>
-          </div>
-
-          <div className="space-y-3">
-            <RangeBox
-              label="من بداية"
-              text={thumunShort(tasks.reviewNear[tasks.reviewNear.length - 1])}
-            />
-            <RangeBox label="إلى نهاية" text={thumunShort(tasks.reviewNear[0])} />
-            {!dayTasks.review_near && (
-              <button
-                onClick={() =>
-                  openSession({ kind: "review_near", day: currentDay, thumuns: tasks.reviewNear })
-                }
-                className="w-full py-3 rounded-xl bg-f-near/10 text-f-near font-bold text-sm hover:bg-f-near/20 transition-colors"
-              >
-                ابدأ جلسة المراجعة القريبة (ثمانية أثمان)
-              </button>
-            )}
-          </div>
-        </motion.div>
-      ) : (
-        <p className="text-center text-muted-foreground py-6 bg-surface rounded-2xl border border-border/50">
-          تبدأ مراجعة القريب من يومك الثاني على الرحلة
-        </p>
-      )}
-
-      {/* ─── مراجعة البعيد ─── */}
-      {tasks.reviewFar ? (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
-          className="surface-card p-5"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <TaskCheckbox
-              checked={!!dayTasks.review_far}
-              label="تمت مراجعة البعيد"
-              onToggle={(e) => {
-                if (!dayTasks.review_far) addEvent(XP_TABLE.review_far, e.clientX, e.clientY);
-                toggle(currentDay, "review_far");
-              }}
-            />
-            <h3 className="font-bold text-lg flex items-center gap-2">
-              مراجعة البعيد
-              <BookOpen className="w-5 h-5 text-f-far" aria-hidden />
-            </h3>
-          </div>
-
-          <div className="space-y-3">
-            <RangeBox label="من بداية" text={thumunShort(tasks.reviewFar.start)} />
-            <RangeBox label="إلى نهاية" text={thumunShort(tasks.reviewFar.end)} />
-            {!dayTasks.review_far && (
-              <button
-                onClick={() =>
-                  openSession({ kind: "review_far", day: currentDay, thumuns: tasks.reviewFar!.list })
-                }
-                className="w-full py-3 rounded-xl bg-f-far/10 text-f-far font-bold text-sm hover:bg-f-far/20 transition-colors"
-              >
-                ابدأ جلسة المراجعة البعيدة ({tasks.reviewFar.list.length} أثمان)
-              </button>
-            )}
-          </div>
-        </motion.div>
-      ) : (
-        <p className="text-center text-muted-foreground py-6 bg-surface rounded-2xl border border-border/50">
-          تبدأ مراجعة البعيد من اليوم التاسع على الرحلة
-        </p>
-      )}
-
-      {/* ─── الأثمان الضعيفة ─── */}
-      {tasks.weakList.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="surface-card p-5"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <button
-              onClick={() =>
-                openSession({
-                  kind: "review_far",
-                  day: currentDay,
-                  thumuns: tasks.weakList,
-                })
-              }
-              className="text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 rounded-full px-3 py-1.5"
-            >
-              جلسة تثبيت
-            </button>
-            <h3 className="font-bold text-lg flex items-center gap-2">
-              أثمان تحتاج تثبيتاً
-              <Star className="w-5 h-5 text-red-400" aria-hidden />
-            </h3>
-          </div>
-          <div className="space-y-2">
-            {tasks.weakList.map((t) => (
-              <div key={t.id} className="flex items-center gap-2">
-                <button
-                  onClick={() => setRating(t.id, null)}
-                  aria-label={`إزالة علامة الضعف عن ${thumunTitle(t)}`}
-                  title="إزالة العلامة"
-                  className="p-1.5 rounded-full hover:bg-muted shrink-0"
-                >
-                  <Undo2 className="w-3.5 h-3.5 text-muted-foreground" aria-hidden />
-                </button>
-                <div className="flex-1 min-w-0">
-                  <ThumunCard thumun={t} accentClass="bg-red-500/15 text-red-500" compact />
-                </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
-    </div>
-  );
-}
-
-function RangeBox({ label, text }: { label: string; text: string }) {
-  return (
-    <div className="bg-surface rounded-xl p-4">
-      <p className="text-xs text-muted-foreground mb-1">{label}:</p>
-      <p className="font-semibold text-foreground text-sm">{text}</p>
-    </div>
-  );
+export default function ReviewTab({ tasks, dayTasks, currentDay }: { tasks: FortressTasks; dayTasks: DailyTasks; currentDay: number }) {
+  const state = useHifzStore(), open = useSessionStore((s) => s.open), arabic = state.settings.arabicNumerals;
+  const recommended = reviewDue(state).slice(0, 5);
+  const cards = [{ task: "review_near" as const, title: "مراجعة القريب", list: tasks.reviewNear, icon: History }, { task: "review_far" as const, title: "مراجعة البعيد", list: tasks.reviewFar?.list ?? [], icon: BookOpen }];
+  return <div className="space-y-4">
+    <h1 className="text-xl font-bold">المراجعة والرسوخ</h1>
+    {cards.map(({ task, title, list, icon: Icon }) => {
+      const sorted = [...list].sort((a, b) => a.id - b.id);
+      return <section key={task} className="surface-card p-5 space-y-3">
+        <div className="flex items-center gap-3"><Icon className="size-5 text-primary" aria-hidden /><h2 className="font-bold text-lg flex-1">{title}</h2>{list.length > 0 && <TaskCheckbox checked={dayTasks[task] === true} label={`أنجزت جميع مواد ${title}`} onToggle={() => state.toggleTask(currentDay, task)} />}</div>
+        {list.length ? <>
+          <p className="text-sm text-muted-foreground">{formatNum(list.length, arabic)} أثمان · المدى: {formatNum(sorted[0].id, arabic)}–{formatNum(sorted.at(-1)!.id, arabic)}</p>
+          <p className="text-sm">من {thumunShort(sorted[0], arabic)} إلى {thumunShort(sorted.at(-1)!, arabic)}</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">ترتيب المرور: {list.map((t) => formatNum(t.id, arabic)).join("، ")}. تُقيّم كل ثمن على حدة.</p>
+          <Button variant="outline" className="w-full min-h-12" onClick={() => open({ kind: task, day: currentDay, thumuns: list })}>ابدأ {title}</Button>
+        </> : <p className="text-sm text-muted-foreground">لا مادة مطلوبة هنا في خطة اليوم؛ تُراجع الأثمان المحفوظة بالفعل فقط.</p>}
+      </section>;
+    })}
+    <section className="surface-card p-5 space-y-3">
+      <h2 className="font-bold text-lg flex items-center gap-2"><Sparkles className="size-5 text-f-gold" aria-hidden /> تثبيت إضافي مقترح</h2>
+      <p className="text-sm text-muted-foreground leading-relaxed">اقتراحات بسيطة بحسب تقييمك ووقت آخر مراجعة. لا تستبدل مراجعة القريب أو البعيد، ولا تغيّر المنهج تلقائيًا.</p>
+      {recommended.length ? <>
+        <Button className="w-full min-h-12" onClick={() => open({ kind: "free_review", day: currentDay, thumuns: recommended.map((item) => getThumun(item.id)!), minutes: 15 })}>لدي 15 دقيقة — جلسة تثبيت حرة</Button>
+        <ul className="space-y-2">{recommended.map((item) => <li key={item.id} className="rounded-xl bg-surface p-3 space-y-1">
+          <p className="font-semibold text-sm">الثمن {formatNum(item.id, arabic)} · {thumunShort(getThumun(item.id)!, arabic)}</p>
+          <p className="text-xs text-muted-foreground">{item.reason}{item.lastDate ? ` · آخر مراجعة ${item.lastDate}` : ""}</p>
+          <button className="text-sm text-primary font-semibold min-h-11" onClick={() => open({ kind: "free_review", day: currentDay, thumuns: [getThumun(item.id)!], minutes: 5 })}>ثبّت هذا الثمن</button>
+        </li>)}</ul>
+      </> : <p className="text-sm text-muted-foreground">لا مراجعات إضافية مستحقة الآن. لا نعرض غير المحفوظ كأنه يحتاج تثبيتًا.</p>}
+    </section>
+  </div>;
 }

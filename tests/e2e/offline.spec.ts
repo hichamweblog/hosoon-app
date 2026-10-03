@@ -1,0 +1,23 @@
+import { expect, test } from "@playwright/test";
+import { guest, seed, open, modal } from "./helpers";
+test.use({ serviceWorkers: "allow" });
+test("offline cold reopening: الهيكل والمحفوظ والصورة المنزّلة، دون تحميل 485 صورة", async ({ page, context }) => {
+  const images: string[] = []; page.on("request", (request) => { if (request.url().includes("/mushaf/pages/")) images.push(request.url()); });
+  const data = guest(); data.notes[1] = "OFFLINE_NOTE"; await seed(page, data); await open(page);
+  await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller), { timeout: 30000 }).toBe(true);
+  expect(images).toHaveLength(0);
+  const later = page.getByRole("button", { name: "لاحقًا", exact: true }); if (await later.isVisible()) await later.click();
+  await page.getByRole("button", { name: "فتح المصحف الشريف" }).click(); await modal(page, "المصحف — الثمن 1");
+  await expect.poll(() => page.locator("img[alt*='صورة صفحة']").evaluate((node) => (node as HTMLImageElement).complete && (node as HTMLImageElement).naturalWidth > 0)).toBe(true);
+  await page.getByRole("button", { name: "تنزيل صفحات هذا الثمن" }).click();
+  await expect.poll(() => page.evaluate(async () => (await (await caches.open("hosoon-mushaf-v1")).keys()).length)).toBeGreaterThanOrEqual(2);
+  await page.getByRole("button", { name: "إغلاق القارئ" }).click(); await page.getByRole("checkbox", { name: "تم تلاوة الجزء" }).click();
+  const before = await page.evaluate(() => localStorage.getItem("hosoon-progress:guest")); expect(before).toContain("OFFLINE_NOTE");
+  await context.setOffline(true); await page.close();
+  const cold = await context.newPage(); await cold.goto("/"); await expect(cold.getByRole("heading", { name: "وردك اليوم" })).toBeVisible();
+  expect(await cold.evaluate(() => JSON.parse(localStorage.getItem("hosoon-progress:guest")!).state.notes[1])).toBe("OFFLINE_NOTE");
+  await expect(cold.getByRole("checkbox", { name: "تم تلاوة الجزء" })).toHaveAttribute("aria-checked", "true");
+  await cold.getByRole("button", { name: "فتح المصحف الشريف" }).click(); await modal(cold, "المصحف — الثمن 1");
+  await expect.poll(() => cold.locator("img[alt*='صورة صفحة']").evaluate((node) => (node as HTMLImageElement).complete && (node as HTMLImageElement).naturalWidth > 0)).toBe(true);
+  expect(images.length).toBeLessThanOrEqual(5); await context.setOffline(false);
+});

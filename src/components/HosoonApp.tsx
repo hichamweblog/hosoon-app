@@ -1,408 +1,104 @@
 "use client";
-
-import FloatingXpOverlay from "@/components/FloatingXpOverlay";
-import KhatmaCelebration from "@/components/KhatmaCelebration";
-import Onboarding from "@/components/Onboarding";
-import ScheduleView from "@/components/ScheduleView";
-import SessionOverlay from "@/components/SessionOverlay";
-import SettingsModal from "@/components/SettingsModal";
-import StatsDashboard from "@/components/StatsDashboard";
-import ThemeToggle from "@/components/ThemeToggle";
-import HomeTab from "@/components/tabs/HomeTab";
-import PrepTab from "@/components/tabs/PrepTab";
-import ReviewTab from "@/components/tabs/ReviewTab";
-import ThumunReaderView from "@/components/mushaf/ThumunReaderView";
-import { Button } from "@/components/ui/button";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { BarChart2, BookOpen, BookOpenCheck, CalendarDays, Cloud, Home, Settings, Shield } from "lucide-react";
+import HomeTab from "./tabs/HomeTab";
+import ThemeToggle from "./ThemeToggle";
+import { Button } from "./ui/button";
+import { useAccount } from "@/hooks/useAccount";
 import { useCloudSync } from "@/hooks/useCloudSync";
-import { useBrowserFlag, useMounted } from "@/hooks/useMounted";
+import { useMounted } from "@/hooks/useMounted";
+import { useToday } from "@/hooks/useToday";
 import { useHijriDate } from "@/hooks/useHijriDate";
-import { formatNum } from "@/lib/format";
-import { getFortressTasks, THUMUNS_PER_JUZ, TOTAL_THUMUNS } from "@/lib/fortress-calculator";
-import { vibrateLight } from "@/lib/haptic";
-import { scheduleDailyReminder } from "@/lib/reminders";
-import { getCurrentUser, isSupabaseConfigured, onAuthChange } from "@/lib/supabase";
-import { isDayCompleted, useHifzStore } from "@/store/useHifzStore";
+import { useHifzStore } from "@/store/useHifzStore";
+import { useAppStatusStore } from "@/store/useAppStatusStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useSessionStore } from "@/store/useSessionStore";
 import { useMushafStore } from "@/store/useMushafStore";
-import { AnimatePresence, motion } from "framer-motion";
-import {
-  BarChart2,
-  Bell,
-  BookOpen,
-  BookOpenCheck,
-  CalendarDays,
-  Flame,
-  Home,
-  Settings as SettingsIcon,
-  Shield,
-  Trophy,
-} from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { useSwipeable } from "react-swipeable";
+import { formatNum } from "@/lib/format";
+import { planToFortress, tasksForPlan, memorizedIds } from "@/lib/progress/plan";
+import { scheduleDailyReminder, cancelDailyReminder } from "@/lib/reminders";
+import ScreenBoundary from "./ScreenBoundary";
 
-type TabType = "home" | "prep" | "review" | "plan" | "stats";
+const loading = () => <p role="status" className="p-6 text-center text-sm text-muted-foreground">جارٍ فتح الشاشة…</p>;
+const Onboarding = dynamic(() => import("./Onboarding"), { loading });
+const PrepTab = dynamic(() => import("./tabs/PrepTab"), { loading });
+const ReviewTab = dynamic(() => import("./tabs/ReviewTab"), { loading });
+const ScheduleView = dynamic(() => import("./ScheduleView"), { loading });
+const StatsDashboard = dynamic(() => import("./StatsDashboard"), { loading });
+const SettingsModal = dynamic(() => import("./SettingsModal"), { loading });
+const SessionOverlay = dynamic(() => import("./SessionOverlay"), { loading });
+const Reader = dynamic(() => import("./mushaf/ThumunReaderView"), { loading });
+const Celebration = dynamic(() => import("./KhatmaCelebration"));
+const ActiveAudio = dynamic(() => import("./audio/ActiveAudioBar"));
+const PwaManager = dynamic(() => import("./PwaManager"));
 
+type Tab = "home" | "prep" | "review" | "plan" | "stats";
+const tabs = [
+  { id: "home" as const, label: "اليوم", icon: Home }, { id: "prep" as const, label: "التحضير", icon: BookOpenCheck },
+  { id: "review" as const, label: "المراجعة", icon: Shield }, { id: "plan" as const, label: "الخطة", icon: CalendarDays },
+  { id: "stats" as const, label: "إحصائيات", icon: BarChart2 },
+];
 export default function HosoonApp() {
-  const showOnboarding = useHifzStore((s) => s.showOnboarding);
-  const currentDay = useHifzStore((s) => s.currentDay);
-  const streak = useHifzStore((s) => s.streak);
-  const bestStreak = useHifzStore((s) => s.bestStreak);
-  const completedTasks = useHifzStore((s) => s.completedTasks);
-  const editedThumuns = useHifzStore((s) => s.editedThumuns);
-  const thumunRatings = useHifzStore((s) => s.thumunRatings);
-  const maintain = useHifzStore((s) => s.maintain) ?? { active: false, day: 1 };
-  const settings = useHifzStore((s) => s.settings);
-  const reminderTime = settings.reminderTime;
-  const openReader = useMushafStore((s) => s.openReader);
-
-  const mounted = useMounted();
-  const [signedIn, setSignedIn] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>("home");
-  const notifDenied = useBrowserFlag(
-    () => typeof window !== "undefined" && "Notification" in window && Notification.permission === "denied",
-  );
-
+  useAccount();
+  const router = useRouter(), recovery = useAuthStore((s) => s.recovery);
+  useEffect(() => { if (recovery) router.replace("/auth/recovery"); }, [recovery, router]);
+  const owner = useHifzStore((s) => s.ownerId), initialized = useAuthStore((s) => s.initialized), mounted = useMounted();
+  useCloudSync(owner);
+  if (!mounted || !initialized || recovery) return <div className="min-h-[100dvh] grid place-items-center"><p role="status">جارٍ فتح بياناتك…</p></div>;
+  return <Workspace key={owner ?? "guest"} />;
+}
+function Workspace() {
+  const state = useHifzStore(), status = useAppStatusStore(), today = useToday();
+  const session = useSessionStore((s) => s.payload), readerOpen = useMushafStore((s) => s.isOpen), openReader = useMushafStore((s) => s.openReader);
+  const [tab, setTab] = useState<Tab>("home"), [settingsOpen, setSettingsOpen] = useState(false);
+  const hijri = useHijriDate(state.settings.arabicNumerals), arabic = state.settings.arabicNumerals;
+  useEffect(() => { if (!state.ownerId || status.cloudReadReady) useHifzStore.getState().ensureTodayPlan(today); }, [today, state.ownerId, state.showOnboarding, state.currentDay, status.cloudReadReady]);
   useEffect(() => {
-    if (isSupabaseConfigured) {
-      getCurrentUser().then((u) => setSignedIn(!!u));
-      return onAuthChange((u) => setSignedIn(!!u));
-    }
-  }, []);
-
-  useCloudSync(signedIn);
-
-  // daily reminder scheduling
-  useEffect(() => {
-    if (!reminderTime) return;
-    void scheduleDailyReminder(reminderTime);
-  }, [reminderTime]);
-
-  const weakIds = useMemo(
-    () =>
-      Object.entries(thumunRatings)
-        .filter(([, v]) => v === "weak")
-        .map(([k]) => Number(k)),
-    [thumunRatings],
-  );
-
-  const tasks = useMemo(
-    () =>
-      getFortressTasks(currentDay, {
-        edited: editedThumuns,
-        weakIds,
-        maintain: maintain?.active ?? false,
-        reciteJuzPerDay: settings.reciteJuzPerDay,
-        listenHizbPerDay: settings.listenHizbPerDay,
-      }),
-    [currentDay, editedThumuns, weakIds, maintain?.active, settings.reciteJuzPerDay, settings.listenHizbPerDay],
-  );
-
-  const dayTasks = completedTasks[currentDay] || {};
-  const completedCount = tasks.taskKeys.filter((k) => dayTasks[k]).length;
-  const totalTasks = tasks.taskKeys.length;
-  const progressPct = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0;
-
-  const highestDay = useMemo(() => {
-    const days = Object.keys(completedTasks)
-      .map(Number)
-      .filter((d) => Object.values(completedTasks[d] || {}).some(Boolean));
-    return days.length > 0 ? Math.max(...days) : 0;
-  }, [completedTasks]);
-
-  const arabic = settings.arabicNumerals;
-  const overallPct = ((highestDay / TOTAL_THUMUNS) * 100).toFixed(1);
-  const completedDays = useMemo(
-    () =>
-      Object.entries(completedTasks).filter(([, t]) => isDayCompleted(t, maintain?.active)).length,
-    [completedTasks, maintain?.active],
-  );
-  const juzCount = Math.floor(highestDay / THUMUNS_PER_JUZ);
-
-  const hijriDate = useHijriDate(settings.arabicNumerals);
-
-  const greeting = useMemo(() => {
-    const h = new Date().getHours();
-    if (h < 5) return "قياماً مقبولاً";
-    if (h < 12) return "صباح الهمة";
-    if (h < 17) return "مساء الخير";
-    return "مساء السكينة";
-  }, []);
-
-  const rankInfo = useMemo(() => {
-    const ranks = [
-      { max: 10, label: "محب للقرآن" },
-      { max: 40, label: "صاحب الهمة" },
-      { max: 100, label: "طالب علم" },
-      { max: 240, label: "حامل الأجزاء" },
-      { max: 400, label: "مشروع حافظ" },
-      { max: 480, label: "حافظ متقن" },
-    ];
-    if (highestDay >= 480) return { label: ranks[5].label, progress: 100 };
-    let currentIdx = 0;
-    for (let i = 0; i < ranks.length; i++) {
-      if (highestDay < ranks[i].max) {
-        currentIdx = i;
-        break;
-      }
-    }
-    const current = ranks[currentIdx];
-    const prevMax = currentIdx > 0 ? ranks[currentIdx - 1].max : 0;
-    const progress = Math.min(
-      100,
-      Math.max(0, Math.round(((highestDay - prevMax) / (current.max - prevMax)) * 100)),
-    );
-    return { label: current.label, progress };
-  }, [highestDay]);
-
-  const streakTone = useMemo(() => {
-    if (streak < 3) return "text-orange-400/80";
-    if (streak < 7) return "text-orange-500";
-    if (streak < 15) return "text-f-gold";
-    if (streak < 30) return "text-f-prep";
-    return "text-primary drop-shadow-[0_0_8px_rgba(62,146,109,0.5)]";
-  }, [streak]);
-
-  const tabs: { id: TabType; label: string; icon: typeof Home }[] = useMemo(
-    () => [
-      { id: "home", label: "اليوم", icon: Home },
-      { id: "prep", label: "التحضير", icon: BookOpenCheck },
-      { id: "review", label: "المراجعة", icon: Shield },
-      { id: "plan", label: "الخطة", icon: CalendarDays },
-      { id: "stats", label: "إحصائيات", icon: BarChart2 },
-    ],
-    [],
-  );
-
-  const swipeHandlers = useSwipeable({
-    // RTL: "next" content sits to the left → swipe right advances
-    onSwipedRight: () => {
-      const i = tabs.findIndex((t) => t.id === activeTab);
-      if (i < tabs.length - 1) {
-        setActiveTab(tabs[i + 1].id);
-        vibrateLight();
-      }
-    },
-    onSwipedLeft: () => {
-      const i = tabs.findIndex((t) => t.id === activeTab);
-      if (i > 0) {
-        setActiveTab(tabs[i - 1].id);
-        vibrateLight();
-      }
-    },
-    trackMouse: false,
-    delta: 60,
-    preventScrollOnSwipe: false,
-  });
-
-  const R = 38;
-  const SW = 5;
-  const C = 2 * Math.PI * R;
-  const offset = C - (progressPct / 100) * C;
-
-  if (!mounted) {
-    return (
-      <div className="min-h-[100dvh] flex items-center justify-center bg-background">
-        <div
-          className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin"
-          aria-label="جارٍ التحميل"
-        />
-      </div>
-    );
-  }
-  if (showOnboarding) return <Onboarding />;
-
-  return (
-    <main {...swipeHandlers} className="min-h-[100dvh] pb-28 bg-background text-foreground relative" dir="rtl">
-      {/* Glow background */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden>
-        <div className="absolute top-[-5%] left-[-10%] w-[60vw] h-[60vw] rounded-full bg-primary/10 blur-[100px] sm:blur-[120px]" />
-        <div className="absolute top-[40%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-f-gold/10 blur-[100px] sm:blur-[120px]" />
-      </div>
-
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-5 space-y-5 relative z-10">
-        {/* Header */}
-        <header className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center" aria-hidden>
-              <span className="text-primary-foreground font-bold text-sm">ح</span>
-            </div>
-            <div>
-              <span className="font-bold text-lg text-foreground tracking-tight block leading-tight">حصون</span>
-              <span className="text-[9px] text-muted-foreground">رواية ورش عن نافع</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5">
-            {notifDenied && (
-              <span className="text-[9px] text-red-400 max-w-[90px] leading-tight">
-                الإشعارات معطّلة في المتصفح
-              </span>
-            )}
-            {reminderTime && !notifDenied && (
-              <span
-                className="w-8 h-8 rounded-full bg-f-near/10 text-f-near flex items-center justify-center"
-                title={`التذكير ${reminderTime}`}
-                aria-label={`التذكير اليومي الساعة ${reminderTime}`}
-              >
-                <Bell className="w-4 h-4" aria-hidden />
-              </span>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 font-bold text-xs h-9 px-3 rounded-full border-amber-500/30 text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 transition-all"
-              aria-label="فتح المصحف الشريف"
-              onClick={() => {
-                vibrateLight();
-                openReader(currentDay);
-              }}
-            >
-              <BookOpen className="w-3.5 h-3.5" aria-hidden />
-              <span>المصحف</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground"
-              aria-label="الإعدادات"
-              onClick={() => {
-                vibrateLight();
-                setShowSettings(true);
-              }}
-            >
-              <SettingsIcon className="w-[20px] h-[20px]" aria-hidden />
-            </Button>
-            <ThemeToggle />
-          </div>
-        </header>
-
-        {/* Hero */}
-        <section className="surface-card p-5 sm:p-6">
-          <div className="flex items-start justify-between mb-5">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <p className="text-primary text-sm font-semibold">{greeting}</p>
-                <div className="relative overflow-hidden bg-primary/10 rounded-full">
-                  <div
-                    className="absolute top-0 bottom-0 right-0 bg-primary/20 transition-all duration-1000 ease-out"
-                    style={{ width: `${rankInfo.progress}%` }}
-                  />
-                  <span className="text-[10px] text-primary px-2 py-0.5 font-bold relative z-10">
-                    {rankInfo.label}
-                  </span>
-                </div>
-              </div>
-              <h1 className="text-foreground flex items-baseline gap-2">
-                <span className="text-3xl sm:text-4xl font-extrabold">
-                  {maintain?.active ? "ختمة التثبيت" : `الثمن ${formatNum(currentDay, arabic)}`}
-                </span>
-                <span className="text-base font-medium text-muted-foreground">
-                  {maintain?.active ? "ورد الرسوخ" : "من الرحلة"}
-                </span>
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                أبعد محطة: الثمن {formatNum(highestDay, arabic)} ({formatNum(overallPct, arabic)}%) ·
-                أيام مكتملة: {formatNum(completedDays, arabic)}
-              </p>
-              <p className="text-xs text-muted-foreground/80">{hijriDate}</p>
-            </div>
-            <div className="flex flex-col items-center gap-1">
-              <p className="text-xs text-muted-foreground">الحصون</p>
-              <div className="relative w-20 h-20">
-                <svg width="80" height="80" className="-rotate-90" aria-hidden>
-                  <circle cx="40" cy="40" r={R} strokeWidth={SW} className="stroke-border" fill="none" />
-                  <motion.circle
-                    cx="40"
-                    cy="40"
-                    r={R}
-                    strokeWidth={SW}
-                    className="stroke-primary"
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeDasharray={C}
-                    initial={{ strokeDashoffset: C }}
-                    animate={{ strokeDashoffset: offset }}
-                    transition={{ duration: 0.6, ease: "easeOut" }}
-                  />
-                </svg>
-                <span className="absolute inset-0 grid place-items-center">
-                  <span className="text-lg font-bold">
-                    {formatNum(completedCount, arabic)}
-                    <span className="text-muted-foreground text-xs font-normal">
-                      /{formatNum(totalTasks, arabic)}
-                    </span>
-                  </span>
-                </span>
-              </div>
-              <p className="text-[10px] text-muted-foreground font-medium">{formatNum(progressPct, arabic)}%</p>
-            </div>
-          </div>
-
-          {/* Stats row */}
-          <div className="grid grid-cols-4 gap-2">
-            {[
-              { icon: Flame, label: "السلسلة", value: `${formatNum(streak, arabic)} يوم`, color: streakTone },
-              { icon: Trophy, label: "أفضل سلسلة", value: `${formatNum(bestStreak, arabic)} يوم`, color: "text-f-gold" },
-              { icon: BookOpenCheck, label: "أبعد محطة", value: `${formatNum(highestDay, arabic)} ثمن`, color: "text-primary" },
-              { icon: CalendarDays, label: "الأجزاء", value: `${formatNum(juzCount, arabic)} جزء`, color: "text-f-khatma" },
-            ].map((s) => (
-              <div key={s.label} className="bg-surface rounded-xl p-2.5 flex flex-col items-center gap-1.5 text-center">
-                <s.icon className={`w-4 h-4 ${s.color}`} aria-hidden />
-                <p className="text-[10px] text-muted-foreground leading-none">{s.label}</p>
-                <p className={`text-xs font-bold leading-none ${s.color}`}>{s.value}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Tabs content */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.15 }}
-          >
-            {activeTab === "home" && <HomeTab tasks={tasks} dayTasks={dayTasks} currentDay={currentDay} />}
-            {activeTab === "prep" && <PrepTab tasks={tasks} dayTasks={dayTasks} currentDay={currentDay} />}
-            {activeTab === "review" && <ReviewTab tasks={tasks} dayTasks={dayTasks} currentDay={currentDay} />}
-            {activeTab === "plan" && <ScheduleView />}
-            {activeTab === "stats" && <StatsDashboard />}
-          </motion.div>
-        </AnimatePresence>
-      </div>
-
-      {/* Bottom nav */}
-      <nav
-        className="fixed bottom-0 left-0 right-0 border-t border-border bg-background/95 backdrop-blur-lg z-50 pb-safe"
-        aria-label="التنقل الرئيسي"
-      >
-        <div className="max-w-2xl mx-auto flex items-center justify-around py-2 px-1">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => {
-                setActiveTab(t.id);
-                vibrateLight();
-              }}
-              aria-current={activeTab === t.id ? "page" : undefined}
-              aria-label={t.label}
-              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-all ${
-                activeTab === t.id ? "text-primary" : "text-muted-foreground"
-              }`}
-            >
-              <t.icon className="w-5 h-5" strokeWidth={activeTab === t.id ? 2.5 : 1.5} aria-hidden />
-              <span className="text-[10px] font-medium leading-none">{t.label}</span>
-            </button>
-          ))}
+    scheduleDailyReminder(state.settings.reminderTime);
+    return cancelDailyReminder;
+  }, [state.ownerId, state.settings.reminderTime]);
+  if (state.showOnboarding && !status.storageError) return <Onboarding />;
+  const plan = state.ownerId && !status.cloudReadReady ? undefined : state.dailyPlans[today];
+  const tasks = plan ? planToFortress(plan) : null;
+  const dayTasks = tasksForPlan(state, plan), count = plan?.taskKeys.filter((key) => dayTasks[key]).length ?? 0, total = plan?.taskKeys.length ?? 0;
+  const phaseLabels = { local: "محفوظ على هذا الجهاز", pending: "محفوظ محليًا · ينتظر المزامنة", syncing: "جارٍ مزامنة التقدم", synced: "تم حفظ النسخة السحابية", error: "المزامنة متوقفة · النسخة المحلية محفوظة" };
+  const memorized = memorizedIds(state).length;
+  return <main className={`min-h-[100dvh] bg-background text-foreground pb-44 ${state.settings.quietMode ? "quiet-mode" : ""}`} dir="rtl">
+    <a href="#workspace-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:right-2 z-[200] bg-card p-3 rounded-xl">انتقل إلى المحتوى</a>
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-5 space-y-4">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <div><p className="text-xl font-bold">حصون</p><p className="text-xs text-muted-foreground">رواية ورش عن نافع</p></div>
+        <div className="flex flex-wrap gap-1 items-center">
+          <Button variant="outline" className="rounded-full gap-1 text-sm" aria-label="فتح المصحف الشريف" onClick={() => openReader(state.currentDay)}><BookOpen className="size-4" aria-hidden /><span>المصحف</span></Button>
+          <Button variant="ghost" size="icon" aria-label="الإعدادات" onClick={() => setSettingsOpen(true)}><Settings className="size-5" aria-hidden /></Button><ThemeToggle />
         </div>
-      </nav>
-
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
-      <SessionOverlay />
-      <ThumunReaderView />
-      <KhatmaCelebration />
-      <FloatingXpOverlay />
-    </main>
-  );
+      </header>
+      {status.storageError && <section role="alert" className="rounded-2xl border border-destructive bg-destructive/10 p-4 space-y-2"><p className="font-semibold">الحفظ المحلي يحتاج انتباهك</p><p className="text-sm">{status.storageError}</p><Button variant="outline" onClick={() => setSettingsOpen(true)}>النسخ والاسترجاع</Button></section>}
+      {status.migrationNotice && <section className="rounded-2xl bg-primary/10 p-3 text-sm" aria-label="نتيجة ترحيل البيانات"><p>{status.migrationNotice}</p><button className="min-h-11 font-semibold text-primary" onClick={() => status.setStatus({ migrationNotice: null })}>فهمت</button></section>}
+      <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Cloud className="size-3.5" aria-hidden />{phaseLabels[status.syncPhase]}</p>
+      {tab === "home" && <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-surface p-4" aria-label="تقدم ورد اليوم">
+        <div className="space-y-1 min-w-0 grow basis-40"><h1 className="text-2xl font-bold">وردك اليوم</h1><p className="text-sm text-muted-foreground">{today} · {hijri}</p><p className="text-sm">محطة الحفظ: الثمن {formatNum(state.currentDay, arabic)} · المحفوظ {formatNum(memorized, arabic)} / {formatNum(480, arabic)}</p></div>
+        <div className="shrink-0 grid place-items-center rounded-full border-4 border-primary/40 size-20 text-center" role="progressbar" aria-valuenow={count} aria-valuemin={0} aria-valuemax={total || 1} aria-label="إنجاز مهام اليوم"><span><b className="text-lg">{formatNum(count, arabic)}/{formatNum(total, arabic)}</b><span className="block text-xs text-muted-foreground">{total ? formatNum(Math.round(count * 100 / total), arabic) : "0"}%</span></span></div>
+      </section>}
+      <div id="workspace-content" tabIndex={-1} className="outline-none">
+        <ScreenBoundary key={tab}>
+          {tab === "home" && tasks && plan && <HomeTab tasks={tasks} dayTasks={dayTasks} currentDay={plan.journeyDay} />}
+          {tab === "prep" && tasks && plan && <PrepTab tasks={tasks} dayTasks={dayTasks} currentDay={plan.journeyDay} />}
+          {tab === "review" && tasks && plan && <ReviewTab tasks={tasks} dayTasks={dayTasks} currentDay={plan.journeyDay} />}
+          {tab === "plan" && <ScheduleView />}{tab === "stats" && <StatsDashboard />}
+          {!plan && ["home", "prep", "review"].includes(tab) && <p className="text-sm text-muted-foreground p-4">يحتاج الحساب أول قراءة سحابية ناجحة قبل إنشاء ورد أو نقل بيانات إليه. إن تعذر الاتصال، النسخة المحلية السابقة محفوظة؛ يمكنك فتح الإعدادات أو العودة للضيف.</p>}
+        </ScreenBoundary>
+      </div>
+    </div>
+    <nav aria-label="التنقل الرئيسي" className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 border-t border-border backdrop-blur-sm pb-safe">
+      <div className="max-w-2xl mx-auto flex justify-around gap-1 p-2">{tabs.map(({ id, label, icon: Icon }) => <button key={id} type="button" aria-current={tab === id ? "page" : undefined} aria-label={label} className={`min-h-14 min-w-0 flex-1 rounded-xl flex flex-col items-center justify-center gap-1 ${tab === id ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground"}`} onClick={() => setTab(id)}><Icon className="size-5" aria-hidden /><span className="text-xs break-words">{label === "إحصائيات" ? "إحصاء" : label}</span></button>)}</div>
+    </nav>
+    {settingsOpen && <ScreenBoundary onClose={() => setSettingsOpen(false)}><SettingsModal onClose={() => setSettingsOpen(false)} /></ScreenBoundary>}
+    {session && <ScreenBoundary onClose={() => useSessionStore.getState().close()}><SessionOverlay /></ScreenBoundary>}
+    {readerOpen && <ScreenBoundary onClose={() => useMushafStore.getState().closeReader()}><Reader /></ScreenBoundary>}
+    {state.khatmaCompletedAt && state.celebrationSeenAt !== state.khatmaCompletedAt && <Celebration />}
+    <ActiveAudio /><PwaManager />
+  </main>;
 }
