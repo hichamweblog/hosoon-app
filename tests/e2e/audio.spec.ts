@@ -21,7 +21,7 @@ test("صوت واحد فعلي وMediaSession للنشط، وانتقال الج
 });
 test("الصفحة 480 المشتركة: تحديد 477 يطابق عنوانه وصوته H60-T05", async ({ page }) => {
   await seed(page, guest(476)); await page.route(/https:\/\/.*\.mp3(?:\?.*)?$/, (route) => route.fulfill({ status: 200, contentType: "audio/wav", body: wave() })); await open(page); await page.getByRole("button", { name: "فتح المصحف الشريف" }).click(); await modal(page, "المصحف — الثمن 477"); await page.getByRole("button", { name: "الصفحة التالية", exact: true }).click();
-  await page.locator('[aria-label^="صفحة المصحف"]').click({ position: { x: 100, y: 100 } }); await expect(page.getByRole("heading", { name: /^الثمن 477$/ })).toBeVisible(); await page.getByRole("button", { name: "تشغيل الصوت" }).click();
+  await page.locator('[aria-label^="صفحة المصحف"]').click({ position: { x: 100, y: 100 } }); await expect(page.getByRole("heading", { name: /^سورة الشرح — الثمن 477$/ })).toBeVisible(); await page.getByRole("button", { name: "تشغيل الصوت" }).click();
   await expect.poll(() => page.evaluate(audioPlaying)).toBe(true); expect(await page.locator("audio").getAttribute("src")).toBe(getThumunAudioUrl("sayed", 477));
   await page.getByRole("button", { name: "الصفحة التالية", exact: true }).click(); await expect(page.locator("img[alt*='صفحة 4']")).toBeVisible();
 });
