@@ -32,12 +32,14 @@ test("جلسة → مصحف → Back يحفظ المؤقت والقفل، ثم �
 });
 
 test("معاينة مستقبلية لا تمنح XP أو تقييمًا، والبحث ٢/2/۲ متساوٍ", async ({ page }) => {
-  await seed(page); await open(page); await page.getByRole("button", { name: "الخطة", exact: true }).click();
+  await seed(page); await open(page); await page.getByRole("button", { name: "الخطة", exact: true }).click(); await page.getByRole("button", { name: "فتح بحث الأثمان" }).click();
   const search = page.getByRole("searchbox", { name: "البحث في خطة الأثمان" });
-  for (const number of ["٢", "2", "۲"]) { await search.fill(number); await expect(page.getByRole("button", { name: "معاينة الثمن 2", exact: true })).toBeVisible(); expect(await page.getByRole("button", { name: /^معاينة الثمن / }).count()).toBe(1); }
-  await search.fill("7"); await page.getByRole("button", { name: "معاينة الثمن 7", exact: true }).click(); const preview = await modal(page, "محطة الثمن ٧");
-  await preview.getByRole("button", { name: "مراجعة القريب — معاينة" }).click(); const review = await modal(page, "مراجعة القريب"); await expect(review.getByRole("button", { name: "جيد", exact: true })).toHaveCount(0);
-  await review.getByRole("button", { name: "حفظ وقت الدراسة الحرة" }).click(); expect((await readProgress(page)).totalXp).toBe(0); expect((await readProgress(page)).thumunRatings).toEqual({});
+  for (const number of ["٢", "2", "۲"]) { await search.fill(number); await expect(page.getByRole("button", { name: "قراءة الثمن 2", exact: true })).toBeVisible(); expect(await page.getByRole("button", { name: "قراءة الثمن 2", exact: true }).count()).toBe(1); }
+  await search.fill("7"); await page.getByRole("button", { name: "قراءة الثمن 7", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: /المصحف/ })).toBeVisible();
+  await page.getByRole("button", { name: "إظهار أدوات القارئ" }).click();
+  await page.getByRole("button", { name: "إغلاق القارئ" }).click();
+  expect((await readProgress(page)).totalXp).toBe(0); expect((await readProgress(page)).thumunRatings).toEqual({});
 });
 
 test("تثبيت ثمن ضعيف واحد لا يكمل 16 ثمن مراجعة بعيد", async ({ page }) => {

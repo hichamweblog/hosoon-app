@@ -44,7 +44,7 @@ export default function JourneyRoadmap({ memorized, currentDay }: { memorized: n
           <span className="mt-3 grid grid-cols-4 gap-1" aria-label={`أثمان الحزب ${hizb}`}>
             {ids.map((id) => <button key={id} type="button" aria-label={`فتح الثمن ${id}`} onClick={() => openReader(id)} className={`aspect-square rounded-full border transition-transform hover:scale-125 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${known.has(id) ? count === 8 ? "border-primary-foreground bg-primary-foreground" : "border-primary bg-primary" : count === 8 ? "border-primary-foreground/60 bg-transparent" : "border-muted-foreground/30 bg-transparent"}`} />)}
           </span>
-          <span className={`mt-2 block text-[11px] ${count === 8 ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{formatNum(count, arabic)}/8 محفوظ</span>
+          <span className={`mt-2 block text-[11px] ${count === 8 ? "text-primary-foreground" : "text-muted-foreground"}`}>{formatNum(count, arabic)}/8 محفوظ</span>
         </article>;
       })}
     </div>
