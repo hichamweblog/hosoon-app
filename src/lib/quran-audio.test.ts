@@ -6,8 +6,6 @@ import {
   HIZB_RECITERS,
   THUMUN_RECITERS,
   NORMAL_THUMUN_RECITERS,
-  FAST_THUMUN_RECITERS,
-  isFastThumunReciter,
 } from "./quran-audio";
 
 describe("Quran Audio Service (Ahzab & Athman)", () => {
@@ -95,12 +93,9 @@ describe("Quran Audio Service (Ahzab & Athman)", () => {
       );
     });
 
-    it("generates correct URL for Irawi Normal and Fast", () => {
+    it("generates correct URL for Irawi", () => {
       expect(getThumunAudioUrl("irawi_normal", 1)).toBe(
         "https://archive.org/download/h-137nnnnnnn/H_011.mp3",
-      );
-      expect(getThumunAudioUrl("irawi_fast", 1)).toBe(
-        "https://archive.org/download/xxxxxxxxxxxxxh-011z/H_011.mp3",
       );
     });
 
@@ -110,33 +105,23 @@ describe("Quran Audio Service (Ahzab & Athman)", () => {
       );
     });
 
-    it("generates correct URL for Naboulsi Normal and Fast with encoding", () => {
+    it("generates correct URL for Naboulsi with encoding", () => {
       const normalUrl = getThumunAudioUrl("naboulsi_normal", 1);
       expect(normalUrl).toContain("https://archive.org/download/z426-542z/");
       expect(normalUrl).toContain("001");
       expect(normalUrl).toContain(".mp3");
 
-      const fastUrl = getThumunAudioUrl("naboulsi_fast", 1);
-      expect(fastUrl).toContain("https://archive.org/download/dd426-542zzz/");
-      expect(fastUrl).toContain("001");
-      expect(fastUrl).toContain(".mp3");
     });
 
-    it("generates correct URL for Al-Qazabri Fast and Normal", () => {
+    it("generates correct URL for Al-Qazabri", () => {
       expect(getThumunAudioUrl("qazabri_normal", 1)).toBe(
         "https://archive.org/download/omar-alqazabri-480--thomn-part-athmaan--quran-warsh-128kb/H01_T01.mp3",
       );
-      expect(getThumunAudioUrl("qazabri_fast", 1)).toBe(
-        "https://archive.org/download/nhna-01-t-01nnna/H01_T01.mp3",
-      );
     });
 
-    it("generates correct URL for Yassine Djazaïri Normal and Fast", () => {
+    it("generates correct URL for Yassine Djazaïri", () => {
       expect(getThumunAudioUrl("yassine_normal", 1)).toBe(
         "https://archive.org/download/way2sona_20160210_1428/H01-T01.mp3",
-      );
-      expect(getThumunAudioUrl("yassine_fast", 1)).toBe(
-        "https://archive.org/download/vvvvvvh-55-t-07v/H01-T01.mp3",
       );
     });
 
@@ -146,37 +131,13 @@ describe("Quran Audio Service (Ahzab & Athman)", () => {
       );
     });
 
-    it("generates correct URL for Hassaine Fast", () => {
-      expect(getThumunAudioUrl("hassaine_fast", 1)).toBe(
-        "https://archive.org/download/vv51-t-01vvvvv/H01_T01.mp3",
-      );
-    });
   });
 
-  describe("Reciter Pace & Grouping (Clear distinction)", () => {
-    it("distinguishes fast and normal thumun reciters correctly", () => {
-      expect(isFastThumunReciter("sayed")).toBe(false);
-      expect(isFastThumunReciter("hassaine")).toBe(false);
-      expect(isFastThumunReciter("husary_thumun")).toBe(false);
-      expect(isFastThumunReciter("abdulbasit_thumun")).toBe(false);
-      expect(isFastThumunReciter("irawi_normal")).toBe(false);
-      expect(isFastThumunReciter("hamdan_thumun")).toBe(false);
-      expect(isFastThumunReciter("naboulsi_normal")).toBe(false);
-      expect(isFastThumunReciter("qazabri_normal")).toBe(false);
-      expect(isFastThumunReciter("yassine_normal")).toBe(false);
-      expect(isFastThumunReciter("kouchi_thumun")).toBe(false);
-
-      expect(isFastThumunReciter("sayed_fast")).toBe(true);
-      expect(isFastThumunReciter("qazabri_fast")).toBe(true);
-      expect(isFastThumunReciter("benkiran_fast")).toBe(true);
-      expect(isFastThumunReciter("irawi_fast")).toBe(true);
-      expect(isFastThumunReciter("naboulsi_fast")).toBe(true);
-      expect(isFastThumunReciter("yassine_fast")).toBe(true);
-      expect(isFastThumunReciter("hassaine_fast")).toBe(true);
-
+  describe("Reciter grouping", () => {
+    it("exposes only regular thumun reciters", () => {
       expect(NORMAL_THUMUN_RECITERS).toHaveLength(10);
-      expect(FAST_THUMUN_RECITERS).toHaveLength(7);
-      expect(THUMUN_RECITERS).toHaveLength(17);
+      expect(THUMUN_RECITERS).toHaveLength(10);
+      expect(THUMUN_RECITERS.every((r) => r.pace === "normal")).toBe(true);
 
       for (const r of THUMUN_RECITERS) {
         expect(r.paceLabel).toBeDefined();

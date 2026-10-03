@@ -22,6 +22,7 @@ import { Switch } from "./ui/switch";
 import { toast } from "sonner";
 import { stopAudio } from "@/lib/audio-engine";
 import { useAppTheme } from "./theme-context";
+import { HIZB_RECITERS, THUMUN_RECITERS } from "@/lib/quran-audio";
 
 export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const state = useHifzStore(), user = useAuthStore((s) => s.user), status = useAppStatusStore(), { theme, setTheme } = useAppTheme();
@@ -103,6 +104,10 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         <div className="flex flex-wrap gap-2" aria-label="مظهر التطبيق">{([["dark", "داكن"], ["ocean-dark", "محيط داكن"], ["ocean", "محيط"], ["warm", "دافئ"], ["light", "فاتح"]] as const).map(([id, label]) => <button key={id} aria-pressed={theme === id} className={`rounded-xl min-h-11 px-3 text-sm border ${theme === id ? "border-primary bg-primary/10 text-primary font-bold" : "border-border"}`} onClick={() => setTheme(id)}>{label}</button>)}</div>
         <div className="flex items-center justify-between gap-3"><label htmlFor="quiet-mode" className="text-sm">وضع هادئ — تقليل الحركة والاهتزاز والصوت</label><Switch aria-label="الوضع الهادئ" id="quiet-mode" checked={state.settings.quietMode} onCheckedChange={(value) => state.updateSettings({ quietMode: value })} /></div>
         <label className="block text-sm">حجم الواجهة: {Math.round(state.settings.fontScale * 100)}%<input type="range" min={1} max={1.3} step={0.05} value={state.settings.fontScale} aria-label="تكبير حجم النص" className="w-full min-h-11 accent-[var(--primary)]" onChange={(e) => state.updateSettings({ fontScale: Number(e.target.value) })} /></label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block text-sm">القارئ الافتراضي للأحزاب<select value={state.settings.hizbReciterId} aria-label="القارئ الافتراضي للأحزاب" className="mt-1 w-full rounded-xl border border-border bg-background p-3" onChange={(e) => state.updateSettings({ hizbReciterId: e.target.value })}>{HIZB_RECITERS.map((reciter) => <option value={reciter.id} key={reciter.id}>{reciter.name}</option>)}</select></label>
+          <label className="block text-sm">القارئ الافتراضي للأثمان<select value={state.settings.thumunReciterId} aria-label="القارئ الافتراضي للأثمان" className="mt-1 w-full rounded-xl border border-border bg-background p-3" onChange={(e) => state.updateSettings({ thumunReciterId: e.target.value })}>{THUMUN_RECITERS.map((reciter) => <option value={reciter.id} key={reciter.id}>{reciter.name}</option>)}</select></label>
+        </div>
       </fieldset>
       <fieldset disabled={!editable} className="space-y-3 border-t border-border pt-4"><legend className="font-bold text-lg">الوتيرة والمحفوظ</legend>
         <label className="block text-sm">التلاوة اليومية<select value={state.settings.reciteJuzPerDay} aria-label="عدد أجزاء التلاوة" className="w-full mt-1 p-3 rounded-xl bg-background border border-border" onChange={(e) => state.updateSettings({ reciteJuzPerDay: Number(e.target.value) })}>{[1, 2, 3].map((n) => <option value={n} key={n}>{formatNum(n)} جزء / يوم</option>)}</select></label>

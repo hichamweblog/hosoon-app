@@ -64,7 +64,7 @@ export default function QuranAudioPlayer({ mode, targetId, title, subtitle, curr
     {(details || expanded) && !minimal && <div id={controlId} className="space-y-2 pt-2 border-t border-border">
       <label className="flex flex-wrap items-center gap-2 text-xs">القارئ
         <select className="flex-1 min-w-0 rounded-xl bg-background border border-border p-2 text-sm" value={reciterId} aria-label="اختيار القارئ" onChange={(e) => changeReciter(e.target.value)}>
-          {reciters.map((r) => <option key={r.id} value={r.id}>{r.name}{"pace" in r && r.pace === "fast" ? " — مسرع" : ""}</option>)}
+          {reciters.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
       </label>
       <div className="flex flex-wrap items-center gap-2">

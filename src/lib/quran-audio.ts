@@ -30,14 +30,6 @@
  *   - عمر القزابري
  *   - ياسين الجزائري
  *   - العيون الكوشي
- * - تلاوة مسرعة (حَدْر للمراجعة والتكرار):
- *   - محمد سايد (مسرع)
- *   - عمر القزابري (مسرع)
- *   - عبد المجيب بنكيران (مسرع)
- *   - محمد إيراوي (مسرع)
- *   - عبد الرحيم النبولسي (مسرع)
- *   - ياسين الجزائري (مسرع)
- *   - عبد الحميد حساين (مسرع)
  */
 
 export interface HizbReciter {
@@ -365,121 +357,6 @@ export const THUMUN_RECITERS: ThumunReciter[] = [
     },
   },
 
-  // ─── تلاوة مسرعة / حَدْر (للمراجعة والتكرار السريع) ───
-  {
-    id: "sayed_fast",
-    name: "محمد سايد",
-    pace: "fast",
-    speedLabel: "مسرع",
-    paceLabel: "مسرع",
-    badgeLabel: "⚡ مسرع",
-    description: "تلاوة مسرعة بطريقة الحدر، مثالية للتكرار والمراجعة السريعة للأثمان",
-    archiveId: "z240405xxxz",
-    getUrl: (thumunId: number) => {
-      const { hizb, pos } = thumunToHizbAndPos(thumunId);
-      const hStr = String(hizb).padStart(2, "0");
-      const tStr = String(pos).padStart(2, "0");
-      return `https://archive.org/download/z240405xxxz/H${hStr}-T${tStr}.mp3`;
-    },
-  },
-  {
-    id: "qazabri_fast",
-    name: "عمر القزابري",
-    pace: "fast",
-    speedLabel: "مسرع",
-    paceLabel: "مسرع",
-    badgeLabel: "⚡ مسرع",
-    description: "تلاوة مسرعة بالحدر للشيخ عمر القزابري للمراجعة اليومية",
-    archiveId: "nhna-01-t-01nnna",
-    getUrl: (thumunId: number) => {
-      const { hizb, pos } = thumunToHizbAndPos(thumunId);
-      const hStr = String(hizb).padStart(2, "0");
-      const tStr = String(pos).padStart(2, "0");
-      return `https://archive.org/download/nhna-01-t-01nnna/H${hStr}_T${tStr}.mp3`;
-    },
-  },
-  {
-    id: "benkiran_fast",
-    name: "عبد المجيب بنكيران",
-    pace: "fast",
-    speedLabel: "مسرع",
-    paceLabel: "مسرع",
-    badgeLabel: "⚡ مسرع",
-    description: "تلاوة مسرعة بالحدر للشيخ عبد المجيب بنكيران",
-    archiveId: "ssss435-8",
-    getUrl: (thumunId: number) => {
-      const { hizb, pos } = thumunToHizbAndPos(thumunId);
-      if (hizb === 1 && pos === 1) {
-        return `https://archive.org/download/ssss435-8/01%201-8.mp3`;
-      }
-      const hStr = String(hizb).padStart(2, "0");
-      return `https://archive.org/download/ssss435-8/${hStr}${pos}-8.mp3`;
-    },
-  },
-  {
-    id: "irawi_fast",
-    name: "محمد إيراوي",
-    pace: "fast",
-    speedLabel: "مسرع",
-    paceLabel: "مسرع",
-    badgeLabel: "⚡ مسرع",
-    description: "تلاوة مسرعة بالحدر السريع للشيخ محمد إيراوي للتكرار والمراجعة",
-    archiveId: "xxxxxxxxxxxxxh-011z",
-    getUrl: (thumunId: number) => {
-      const { hizb, pos } = thumunToHizbAndPos(thumunId);
-      const hStr = String(hizb).padStart(2, "0");
-      return `https://archive.org/download/xxxxxxxxxxxxxh-011z/H_${hStr}${pos}.mp3`;
-    },
-  },
-  {
-    id: "naboulsi_fast",
-    name: "عبد الرحيم النبولسي",
-    pace: "fast",
-    speedLabel: "مسرع",
-    paceLabel: "مسرع",
-    badgeLabel: "⚡ مسرع",
-    description: "تلاوة مسرعة بالحدر للشيخ عبد الرحيم النبولسي للمراجعة وتثبيت الأثمان",
-    archiveId: "dd426-542zzz",
-    getUrl: (thumunId: number) => {
-      const { hizb, pos } = thumunToHizbAndPos(thumunId);
-      const idStr = String(Math.max(1, Math.min(480, thumunId))).padStart(3, "0");
-      const hStr = String(hizb).padStart(2, "0");
-      const filename = `${idStr} ---مصحف عبد الرحيم نبولسي رواية  ورش   مقسم أثمان ثمن رقم  ${hStr}${pos}.mp3`;
-      return `https://archive.org/download/dd426-542zzz/${encodeURIComponent(filename)}`;
-    },
-  },
-  {
-    id: "yassine_fast",
-    name: "ياسين الجزائري",
-    pace: "fast",
-    speedLabel: "مسرع",
-    paceLabel: "مسرع",
-    badgeLabel: "⚡ مسرع",
-    description: "تلاوة مسرعة بالحدر للشيخ ياسين الجزائري للمراجعة السريعة",
-    archiveId: "vvvvvvh-55-t-07v",
-    getUrl: (thumunId: number) => {
-      const { hizb, pos } = thumunToHizbAndPos(thumunId);
-      const hStr = String(hizb).padStart(2, "0");
-      const tStr = String(pos).padStart(2, "0");
-      return `https://archive.org/download/vvvvvvh-55-t-07v/H${hStr}-T${tStr}.mp3`;
-    },
-  },
-  {
-    id: "hassaine_fast",
-    name: "عبد الحميد حساين",
-    pace: "fast",
-    speedLabel: "مسرع",
-    paceLabel: "مسرع",
-    badgeLabel: "⚡ مسرع",
-    description: "تلاوة مسرعة بالحدر للشيخ عبد الحميد حساين للتكرار والترديد",
-    archiveId: "vv51-t-01vvvvv",
-    getUrl: (thumunId: number) => {
-      const { hizb, pos } = thumunToHizbAndPos(thumunId);
-      const hStr = String(hizb).padStart(2, "0");
-      const tStr = String(pos).padStart(2, "0");
-      return `https://archive.org/download/vv51-t-01vvvvv/H${hStr}_T${tStr}.mp3`;
-    },
-  },
 ];
 
 export function getHizbAudioUrl(reciterId: string, hizb: number): string {
@@ -500,10 +377,4 @@ export function getThumunReciter(id: string): ThumunReciter {
   return THUMUN_RECITERS.find((r) => r.id === id) ?? THUMUN_RECITERS[0];
 }
 
-export function isFastThumunReciter(id: string): boolean {
-  const reciter = THUMUN_RECITERS.find((r) => r.id === id);
-  return reciter?.pace === "fast";
-}
-
 export const NORMAL_THUMUN_RECITERS = THUMUN_RECITERS.filter((r) => r.pace === "normal");
-export const FAST_THUMUN_RECITERS = THUMUN_RECITERS.filter((r) => r.pace === "fast");

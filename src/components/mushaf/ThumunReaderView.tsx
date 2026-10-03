@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { ArrowRight, Download, EyeOff, Palette, Pause, Play, RotateCcw } from "lucide-react";
+import { ArrowRight, Download, EyeOff, Gauge, Palette, Pause, Play, RotateCcw } from "lucide-react";
 import { useSwipeable } from "react-swipeable";
 import { useMushafStore } from "@/store/useMushafStore";
 import { useHifzStore } from "@/store/useHifzStore";
@@ -9,7 +9,7 @@ import { formatNum } from "@/lib/format";
 import { downloadMushafPages } from "@/lib/offline/mushaf";
 import { AppModal } from "../ui/app-modal";
 import { Button } from "../ui/button";
-import { audioTrackKey, useAudioStore, pauseAudio, playAudio, selectAudio, setAudioLoop } from "@/lib/audio-engine";
+import { audioTrackKey, useAudioStore, pauseAudio, playAudio, selectAudio, setAudioLoop, setAudioSpeed } from "@/lib/audio-engine";
 import { toast } from "sonner";
 
 export default function ThumunReaderView() {
@@ -74,6 +74,7 @@ export default function ThumunReaderView() {
               {audioActive && audio.duration > 0 && <span className="absolute inset-x-0 bottom-0 h-0.5 origin-left rounded-full bg-primary" style={{ transform: `scaleX(${Math.min(1, audio.time / audio.duration)})` }} aria-hidden />}
             </div>
             <Button size="icon-xs" variant={audioActive && audio.loop ? "default" : "ghost"} aria-label="تكرار الثمن باستمرار" aria-pressed={audioActive && audio.loop} onClick={() => { if (!audioActive) selectAudio("thumun", reader.thumunId, settings.thumunReciterId, `الثمن ${formatNum(reader.thumunId, arabic)}`); setAudioLoop(!audio.loop); }} className="!size-7 !min-h-7 !p-0"><RotateCcw className="size-3.5" aria-hidden /></Button>
+            <label className="relative grid size-7 place-items-center rounded-md text-primary focus-within:outline focus-within:outline-2 focus-within:outline-primary" aria-label="سرعة التشغيل"><Gauge className="size-3.5 pointer-events-none" aria-hidden /><select aria-label="سرعة التشغيل" value={audio.speed} onChange={(event) => setAudioSpeed(Number(event.target.value))} className="absolute inset-0 cursor-pointer opacity-0">{[0.75, 1, 1.25, 1.5, 1.75, 2].map((speed) => <option key={speed} value={speed}>{speed}×</option>)}</select></label>
             <Button size="icon-xs" variant="ghost" aria-label="تنزيل صفحات هذا الثمن" disabled={downloading} onClick={download} className="!size-7 !min-h-7 !p-0"><Download className="size-3.5" aria-hidden /></Button>
             <Button size="icon-xs" variant="ghost" aria-label="تغيير مظهر المصحف" onClick={() => reader.setTheme(reader.theme === "sepia" ? "dark" : reader.theme === "dark" ? "light" : "sepia")} className="!size-7 !min-h-7 !p-0"><Palette className="size-3.5" aria-hidden /></Button>
             <Button size="icon-xs" variant="ghost" aria-label="إخفاء أدوات القارئ" onClick={() => setControls(false)} className="!size-7 !min-h-7 !p-0"><EyeOff className="size-3.5" aria-hidden /></Button>
