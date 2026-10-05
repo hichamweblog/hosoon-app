@@ -92,18 +92,25 @@ describe("الإتمام والمحفوظ وسجل النشاط", () => {
 });
 
 describe("خطط مستقلة مؤرخة وثابتة", () => {
-  it("اليوم التالي يتجدد حتى مع بقاء محطة الحفظ في 1", () => {
+  it("اليوم التالي يحتفظ بكل ورد غير مؤشّر عليه ويقدّم المكتمل فقط", () => {
     const first = onboard(); useHifzStore.getState().completeTask(1, "khatma_recite");
     vi.setSystemTime(new Date("2026-10-03T12:00:00Z")); useHifzStore.getState().ensureTodayPlan();
     const data = useHifzStore.getState(), next = data.dailyPlans[localDateKey()];
-    expect(data.currentDay).toBe(1); expect(next.reciteJuzs).toEqual([2]); expect(next.listenHizbs).toEqual([2]);
+    expect(data.currentDay).toBe(1); expect(next.reciteJuzs).toEqual([2]); expect(next.listenHizbs).toEqual([1]);
     expect(tasksForPlan(data, next).khatma_recite).toBe(false); expect(data.dailyPlans[first.date]).toEqual(first);
+  });
+  it("القراءة غير المؤشّرة تبقى في اليوم التالي حتى بعد اكتمال الاستماع", () => {
+    const first = onboard(); useHifzStore.getState().completeTask(1, "khatma_listen");
+    vi.setSystemTime(new Date("2026-10-03T12:00:00Z")); useHifzStore.getState().ensureTodayPlan();
+    const next = useHifzStore.getState().dailyPlans[localDateKey()];
+    expect(next.reciteJuzs).toEqual([1]); expect(next.listenHizbs).toEqual([2]);
+    expect(useHifzStore.getState().dailyPlans[first.date]).toEqual(first);
   });
   it("تغيير الوتيرة يبدأ غدًا دون قفز مادة أو تغيير الماضي", () => {
     const first = onboard(); useHifzStore.getState().updateSettings({ reciteJuzPerDay: 2, listenHizbPerDay: 2 });
     expect(useHifzStore.getState().dailyPlans[first.date]).toEqual(first);
     vi.setSystemTime(new Date("2026-10-03T12:00:00Z")); useHifzStore.getState().ensureTodayPlan();
-    const next = useHifzStore.getState().dailyPlans[localDateKey()]; expect(next.reciteJuzs).toEqual([2, 3]); expect(next.listenHizbs).toEqual([2, 3]);
+    const next = useHifzStore.getState().dailyPlans[localDateKey()]; expect(next.reciteJuzs).toEqual([1]); expect(next.listenHizbs).toEqual([1]);
   });
   it("اليوم للمراجعة يؤجل الجديد فقط ولا يسجل تقدمًا وهميًا", () => {
     onboard(); expect(useHifzStore.getState().setReviewOnlyToday(true)).toBe(true);

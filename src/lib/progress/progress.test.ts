@@ -66,6 +66,20 @@ describe("دمج سجل فريد قابل للتراجع ومتقارب", () => 
     const b = { ...a, versions: Object.fromEntries(Object.entries(a.versions).reverse()) };
     expect(canonicalStringify(a)).toBe(canonicalStringify(b));
   });
+  it("مزامنة تأشير القراءة تسمح بتقديم ورد القراءة التالي فقط", () => {
+    const local = emptyProgress(owner, now); local.showOnboarding = false;
+    const first = makeDailyPlan(local, date, stamp(1)); local.dailyPlans[date] = first;
+    const remote = structuredClone(local);
+    const id = completionId(date, "khatma_recite", first.id);
+    remote.completions[id] = {
+      id, planId: first.id, task: "khatma_recite", day: 1, date,
+      materialIds: materialIds(first, "khatma_recite"), done: true, legacy: false, stamp: stamp(2, "b"),
+    };
+    const merged = mergeProgress(local, deriveProgress(remote));
+    const nextDate = localDateKey(new Date(now.getTime() + 86400000));
+    const next = makeDailyPlan(merged, nextDate, stamp(3));
+    expect(next.reciteJuzs).toEqual([2]); expect(next.listenHizbs).toEqual([1]);
+  });
 });
 describe("ترحيل وحقائق دون اختلاق", () => {
   it("يزيل حقول XP من لقطة v4 دون فقد بقية التقدم", () => {

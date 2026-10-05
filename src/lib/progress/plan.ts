@@ -30,7 +30,11 @@ export function makeDailyPlan(data: ProgressData, date = localDateKey(), stamp: 
   const advanceStart = (previous: number[] | undefined, pace: number, total: number) =>
     previous?.length ? ((previous[previous.length - 1] + (gap - 1) * pace) % total) + 1 : (((sequence - 1) * pace) % total) + 1;
   const recitePace = data.settings.reciteJuzPerDay;
-  const reciteJuzs = block(advanceStart(prior?.reciteJuzs, recitePace, 30), recitePace, 30);
+  const reciteTask = prior?.mode === "maintenance" ? "maintain_recite" : "khatma_recite";
+  const priorTasks = prior ? tasksForPlan(data, prior) : {};
+  const reciteJuzs = prior && priorTasks[reciteTask] !== true
+    ? prior.reciteJuzs
+    : block(advanceStart(prior?.reciteJuzs, recitePace, 30), recitePace, 30);
   const known = memorizedIds(data);
   const knownSet = new Set(known);
   const maintain = data.maintain.active;
@@ -52,7 +56,9 @@ export function makeDailyPlan(data: ProgressData, date = localDateKey(), stamp: 
   if (!maintain) for (let id = data.currentDay + 1; id <= Math.min(480, data.currentDay + 8); id++) if (!knownSet.has(id)) prepIds.push(id);
   const newHifzId = maintain || reviewOnly || knownSet.has(data.currentDay) ? null : data.currentDay;
   const listenPace = data.settings.listenHizbPerDay;
-  const listenHizbs = maintain ? [] : block(advanceStart(prior?.listenHizbs, listenPace, 60), listenPace, 60);
+  const listenHizbs = maintain ? [] : prior && priorTasks.khatma_listen !== true
+    ? prior.listenHizbs
+    : block(advanceStart(prior?.listenHizbs, listenPace, 60), listenPace, 60);
   // Maintenance has its own reading cycle and no mandatory weak extra task.
   const taskKeys: TaskType[] = maintain ? ["maintain_recite"] : ["khatma_recite", "khatma_listen"];
   if (prepIds.length) taskKeys.push("prep_weekly");
