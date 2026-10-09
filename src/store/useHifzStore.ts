@@ -61,6 +61,17 @@ function withPlan(data: ProgressData, date = localDateKey()): { data: ProgressDa
   const plan = makeDailyPlan(data, date, nextStamp(data));
   return { data: { ...data, dailyPlans: { ...data.dailyPlans, [date]: plan } }, plan };
 }
+function replanFromToday(data: ProgressData, today = localDateKey()): ProgressData {
+  let replanned: ProgressData = {
+    ...data,
+    dailyPlans: Object.fromEntries(Object.entries(data.dailyPlans).filter(([date]) => date < today)),
+  };
+  for (const date of Object.keys(data.dailyPlans).filter((date) => date >= today).sort()) {
+    const plan = makeDailyPlan(replanned, date, nextStamp(replanned));
+    replanned = { ...replanned, dailyPlans: { ...replanned.dailyPlans, [date]: plan } };
+  }
+  return replanned;
+}
 function setTask(data: ProgressData, day: number, task: TaskType, done: boolean, date = localDateKey(), performed?: number[]): ProgressData {
   // Preview is unrestricted; credited actions are restricted at the store boundary too.
   if (!validId(day) || day > data.currentDay || date !== localDateKey() || task === "free_review") return data;
@@ -175,7 +186,8 @@ export const useHifzStore = create<HifzState>()(persist((set, get) => {
         if (!done) for (const [key, c] of Object.entries(completions)) if (c.task === "new_hifz" && (c.day === id || c.materialIds.includes(id))) completions[key] = { ...c, done: false, stamp };
       }
       let currentDay = 1; while (currentDay < 480 && memorization[currentDay]?.memorized) currentDay++;
-      return { ...data, memorization, completions, currentDay, versions: { ...data.versions, currentDay: stamp } };
+      const replanned = replanFromToday({ ...data, memorization, completions, currentDay });
+      return { ...replanned, versions: { ...replanned.versions, currentDay: stamp } };
     }),
     advanceDay: () => mutate((data) => {
       if (!data.memorization[data.currentDay]?.memorized || data.currentDay >= 480) return data;

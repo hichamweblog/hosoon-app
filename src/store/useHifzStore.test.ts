@@ -56,6 +56,22 @@ describe("الإتمام والمحفوظ وسجل النشاط", () => {
     expect(data.completedTasks).toEqual({}); expect(data.streak).toBe(0);
     expect(data.dailyLog).toEqual({});
   });
+  it("تصحيح المحفوظ يعيد خطة اليوم والقادم حسب المحفوظ دون تغيير الخطط الماضية", () => {
+    vi.setSystemTime(new Date("2026-10-01T12:00:00Z"));
+    const first = onboard();
+    vi.setSystemTime(new Date("2026-10-02T12:00:00Z")); useHifzStore.getState().ensureTodayPlan();
+    const today = useHifzStore.getState().dailyPlans[localDateKey()];
+    vi.setSystemTime(new Date("2026-10-03T12:00:00Z")); useHifzStore.getState().ensureTodayPlan();
+    const next = useHifzStore.getState().dailyPlans[localDateKey()];
+    vi.setSystemTime(new Date("2026-10-02T12:00:00Z"));
+    useHifzStore.getState().declarePriorMemorization([1, 2, 3, 4]);
+    const data = useHifzStore.getState();
+    expect(data.dailyPlans[first.date]).toEqual(first);
+    expect(data.dailyPlans[today.date]).not.toEqual(today);
+    expect(data.dailyPlans[today.date].newHifzId).toBe(5);
+    expect(data.dailyPlans["2026-10-03"]).not.toEqual(next);
+    expect(data.currentDay).toBe(5);
+  });
   it("تكرار تصريح النطاق لا يكرر السجلات", () => {
     useHifzStore.getState().markRangeComplete(40); useHifzStore.getState().markRangeComplete(40);
     expect(progressMetrics(useHifzStore.getState()).count).toBe(40);

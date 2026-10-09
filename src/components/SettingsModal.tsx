@@ -114,7 +114,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         <label className="block text-sm">الاستماع اليومي<select value={state.settings.listenHizbPerDay} aria-label="عدد أحزاب الاستماع" className="w-full mt-1 p-3 rounded-xl bg-background border border-border" onChange={(e) => state.updateSettings({ listenHizbPerDay: Number(e.target.value) })}>{[1, 2, 3].map((n) => <option value={n} key={n}>{formatNum(n)} حزب / يوم</option>)}</select></label>
         <p className="text-xs text-muted-foreground">تغيير الوتيرة يبدأ بخطة اليوم التالي؛ مواد الأيام المسجلة لا تُفسّر من جديد.</p>
         <Button variant="outline" className="w-full min-h-11" onClick={() => setPrior(new Set(memorizedIds(state)))}>تحديد المحفوظ السابق أو تصحيحه</Button>
-        <p className="text-xs text-muted-foreground">التصريح بالمحفوظ لا يولّد أورادًا ماضية، ويمكن أن يكون سورًا غير متصلة.</p>
+        <p className="text-xs text-muted-foreground">يتحدث ورد اليوم والأيام القادمة حسب المحفوظ، دون إنشاء أوراد أو نشاط لأيام ماضية.</p>
       </fieldset>
       <fieldset disabled={!editable} className="space-y-3 border-t border-border pt-4"><legend className="font-bold text-lg flex items-center gap-2"><Bell className="size-5 text-f-gold" aria-hidden /> تذكير محلي اختياري</legend>
         <p className="text-sm text-muted-foreground leading-relaxed">أفضل جهد أثناء فتح التطبيق فقط. لا خدمة Push في الخلفية؛ قد يعلّق الهاتف المؤقت. تعطيل التذكير يلغي الموعد السابق.</p>

@@ -7,8 +7,13 @@ import { formatNum, normalizeSearch } from "@/lib/format";
 export default function PriorSelection({ selected, onChange, arabic = true }: { selected: Set<number>; onChange: (ids: Set<number>) => void; arabic?: boolean }) {
   const [mode, setMode] = useState<"prefix" | "surahs" | "units">("prefix");
   const [query, setQuery] = useState("");
-  const [surahs, setSurahs] = useState<Set<number>>(new Set());
   const thumuns = getAllThumuns();
+  const [surahs, setSurahs] = useState<Set<number>>(() => new Set(
+    getAllSurahs().filter((surah) => thumuns
+      .filter((thumun) => thumun.startSura <= surah.number && thumun.endSura >= surah.number)
+      .every((thumun) => selected.has(thumun.id))
+    ).map((surah) => surah.number)
+  ));
   let prefix = 0;
   while (selected.has(prefix + 1) && prefix < 480) prefix++;
   const selectPrefix = (count: number) => onChange(new Set(Array.from({ length: Math.max(0, Math.min(480, count)) }, (_, i) => i + 1)));
@@ -16,7 +21,11 @@ export default function PriorSelection({ selected, onChange, arabic = true }: { 
     const next = new Set(surahs); if (next.has(number)) next.delete(number); else next.add(number);
     setSurahs(next);
     const ids = thumuns.filter((t) => Array.from({ length: t.endSura - t.startSura + 1 }, (_, i) => t.startSura + i).every((s) => next.has(s))).map((t) => t.id);
-    onChange(new Set(ids));
+    const preserved = [...selected].filter((id) => {
+      const thumun = thumuns[id - 1];
+      return thumun && (thumun.endSura < number || thumun.startSura > number);
+    });
+    onChange(new Set([...preserved, ...ids]));
   };
   const q = normalizeSearch(query);
   return <div className="space-y-3 text-right">

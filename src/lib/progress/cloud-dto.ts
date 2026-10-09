@@ -13,10 +13,19 @@ export function decodeCloudRow(value: unknown, owner: string): CloudRecord {
   const revision = row.revision, epoch = row.epoch;
   if (!Number.isSafeInteger(revision) || Number(revision) < 0 || !Number.isSafeInteger(epoch) || Number(epoch) < 0)
     throw new Error("المزامنة الآمنة تتطلب نشر ترحيل قاعدة البيانات أولًا");
+  const rowSchemaVersion = row.schema_version;
+  if (!Number.isSafeInteger(rowSchemaVersion) || Number(rowSchemaVersion) < 0)
+    throw new Error("المزامنة الآمنة تتطلب نشر ترحيل قاعدة البيانات أولًا");
+  let needsUpgrade = false;
   let snapshot: ProgressData;
   if (row.snapshot !== null && row.snapshot !== undefined) {
-    if (row.schema_version !== PROGRESS_VERSION) throw new Error("إصدار الخادم غير مدعوم — حدّث التطبيق قبل المزامنة");
-    snapshot = parseProgress(row.snapshot);
+    needsUpgrade = Number(rowSchemaVersion) !== PROGRESS_VERSION;
+    try {
+      snapshot = parseProgress(row.snapshot);
+    } catch (error) {
+      if (!needsUpgrade) throw error;
+      snapshot = migrateProgress(row.snapshot, Number(rowSchemaVersion), owner);
+    }
     if (snapshot.ownerId !== owner || snapshot.epoch !== epoch) throw new Error("نسخة سحابية لا تطابق ملكية/حقبة الصف");
   } else {
     snapshot = migrateProgress({
@@ -29,5 +38,5 @@ export function decodeCloudRow(value: unknown, owner: string): CloudRecord {
     }, 3, owner);
     snapshot.epoch = Number(epoch);
   }
-  return { snapshot: deriveProgress(snapshot), revision: Number(revision), epoch: Number(epoch), needsUpgrade: row.snapshot === null || row.snapshot === undefined };
+  return { snapshot: deriveProgress(snapshot), revision: Number(revision), epoch: Number(epoch), needsUpgrade };
 }
